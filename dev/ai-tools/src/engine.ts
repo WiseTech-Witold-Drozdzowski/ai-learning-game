@@ -1,0 +1,154 @@
+import ora from "ora";
+import chalk from "chalk";
+import type { AiToolsConfig } from "./config.js";
+import { addUsage, runAgent } from "./claude.js";
+import { getStage } from "./stages.js";
+import { saveRun } from "./state.js";
+import { SYSTEM_PROMPT } from "./prompts.js";
+import { renderUsageLine, STAGE_LABELS } from "./ui.js";
+import type { AgentResult, HistoryEntry, RunState, StageId, ValidationResult } from "./types.js";
+
+function record(state: RunState, entry: Omit<HistoryEntry, "ts">): void {
+  state.history.push({ ts: new Date().toISOString(), ...entry });
+}
+
+/**
+ * Run the workflow from the current stage until it pauses for human review,
+ * finishes, or fails (limits exceeded / agent error). Mutates and persists `state`.
+ */
+export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): Promise<RunState> {
+  state.status = "running";
+
+  while (true) {
+    if (state.currentStage === "human-review") {
+      state.status = "paused";
+      state.message = "Waiting for human review (resume / accept).";
+      saveRun(state);
+      return state;
+    }
+
+    if (state.totalIterations >= cfg.maxTotalIterations) {
+      return fail(state, `Workflow iteration limit exceeded (${cfg.maxTotalIterations}).`);
+    }
+
+    const stage = getStage(state.currentStage);
+    const attempt = (state.attempts[stage.id] ?? 0) + 1;
+    if (attempt > cfg.maxAttemptsPerStage) {
+      return fail(state, `Stage "${STAGE_LABELS[stage.id]}" exceeded its attempt limit (${cfg.maxAttemptsPerStage}).`);
+    }
+    state.attempts[stage.id] = attempt;
+    state.totalIterations += 1;
+    saveRun(state);
+
+    // --- CREATE / REVIEW step (agent) ---
+    const verb = stage.isReview ? "Review" : "Create";
+    const spinner = ora({
+      text: `${chalk.cyan(STAGE_LABELS[stage.id])} — ${verb} (attempt ${attempt}/${cfg.maxAttemptsPerStage})`,
+      spinner: "dots",
+    }).start();
+
+    let agent: AgentResult;
+    try {
+      agent = await runAgent({
+        prompt: stage.buildPrompt(cfg, state, attempt),
+        systemPrompt: SYSTEM_PROMPT,
+        allowedTools: stage.tools(cfg),
+        cwd: cfg.repoRoot,
+        model: cfg.claude.model,
+        maxTurns: cfg.claude.maxTurns,
+        permissionMode: cfg.claude.permissionMode,
+      });
+    } catch (err) {
+      spinner.fail(`${STAGE_LABELS[stage.id]} — agent error`);
+      return fail(state, `Agent threw an exception: ${String(err)}`);
+    }
+
+    state.totals = addUsage(state.totals, agent.usage);
+    record(state, {
+      stage: stage.id,
+      attempt,
+      phase: "create",
+      ok: agent.ok,
+      summary: agent.ok ? `${verb} done` : `Agent error: ${agent.error ?? "unknown"}`,
+      usage: agent.usage,
+    });
+
+    if (agent.ok) {
+      spinner.succeed(`${STAGE_LABELS[stage.id]} — ${verb} OK`);
+    } else {
+      spinner.fail(`${STAGE_LABELS[stage.id]} — ${verb} failed`);
+    }
+    renderUsageLine(`${verb}`, agent.usage);
+    saveRun(state);
+
+    if (!agent.ok) {
+      // Agent itself failed — retry the same stage (counts against the attempt limit).
+      state.currentStage = stage.back;
+      state.message = `Agent did not finish the stage: ${agent.error ?? "unknown error"}`;
+      saveRun(state);
+      continue;
+    }
+
+    // --- VALIDATE step (programmatic) ---
+    const vSpinner = ora({ text: `${chalk.cyan(STAGE_LABELS[stage.id])} — Validation`, spinner: "dots" }).start();
+    let validation: ValidationResult;
+    try {
+      validation = await stage.validate(cfg, state, agent);
+    } catch (err) {
+      vSpinner.fail("Validation — error");
+      return fail(state, `Validator threw an exception: ${String(err)}`);
+    }
+
+    record(state, {
+      stage: stage.id,
+      attempt,
+      phase: "validate",
+      ok: validation.ok,
+      summary: validation.summary,
+    });
+
+    if (validation.ok) {
+      vSpinner.succeed(`Validation OK — ${validation.summary}`);
+      state.currentStage = stage.next;
+      state.message = undefined;
+    } else {
+      vSpinner.fail(`Validation FAIL — ${validation.summary}`);
+      if (validation.details) console.log(chalk.gray(indent(validation.details)));
+      state.currentStage = validation.goBackTo ?? stage.back;
+      state.message = `Rolling back to: ${STAGE_LABELS[state.currentStage]} — ${validation.summary}`;
+    }
+    saveRun(state);
+  }
+}
+
+function fail(state: RunState, message: string): RunState {
+  state.status = "failed";
+  state.message = message;
+  saveRun(state);
+  return state;
+}
+
+function indent(text: string): string {
+  return text
+    .split("\n")
+    .map((l) => `      │ ${l}`)
+    .join("\n");
+}
+
+/** Mark a paused run as accepted by the human. */
+export function acceptRun(state: RunState): void {
+  state.status = "done";
+  state.currentStage = "human-review";
+  state.message = "Accepted by the human.";
+  saveRun(state);
+}
+
+/** Route a paused run back to an earlier stage based on the router agent's decision. */
+export function resumeAt(state: RunState, stage: StageId, note: string): void {
+  state.context.push(`[human review → ${stage}] ${note}`);
+  state.attempts[stage] = 0; // give the revisited stage a fresh budget
+  state.currentStage = stage;
+  state.status = "running";
+  state.message = `Resumed from: ${STAGE_LABELS[stage]}`;
+  saveRun(state);
+}

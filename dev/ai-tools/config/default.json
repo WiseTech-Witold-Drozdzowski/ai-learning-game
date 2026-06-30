@@ -1,0 +1,34 @@
+{
+  "_comment": "All relative paths are resolved against the ai-tools dir. repoRoot is the cwd for both Claude agents and validation commands.",
+  "repoRoot": "../..",
+  "docsDir": "docs",
+  "guidelinesDir": "docs/guidelines",
+  "testGuidelines": "docs/guidelines/TEST_GUIDELINES.md",
+  "implementationGuidelines": "docs/guidelines/IMPLEMENTATION_GUIDELINES.md",
+  "contextDocs": [
+    "docs/design/BACKEND_DESIGN.md",
+    "docs/design/TECHNICAL_DESIGN.md",
+    "docs/design/PRODUCT_DESIGN.md"
+  ],
+  "commands": {
+    "compileMain": "cd Backend && ./gradlew -q --console=plain compileJava",
+    "compileTests": "cd Backend && ./gradlew -q --console=plain compileTestJava",
+    "test": "cd Backend && ./gradlew --console=plain test"
+  },
+  "maxAttemptsPerStage": 3,
+  "maxTotalIterations": 25,
+  "commandTimeoutMs": 900000,
+  "claude": {
+    "model": "claude-opus-4-8",
+    "maxTurns": 60,
+    "permissionMode": "acceptEdits",
+    "allowedTools": {
+      "interface": ["Read", "Write", "Edit", "Glob", "Grep"],
+      "tdd": ["Read", "Write", "Edit", "Glob", "Grep"],
+      "review-tdd": ["Read", "Glob", "Grep"],
+      "implementation": ["Read", "Write", "Edit", "Glob", "Grep"],
+      "review-solution": ["Read", "Glob", "Grep"],
+      "router": ["Read", "Glob", "Grep"]
+    }
+  }
+}

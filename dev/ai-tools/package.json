@@ -1,0 +1,30 @@
+{
+  "name": "ai-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Loop-based developer task runner. Spins Claude CLI agents stage-by-stage with programmatic validation.",
+  "bin": {
+    "ai-task": "src/cli.ts"
+  },
+  "scripts": {
+    "task": "tsx src/cli.ts run",
+    "run-task": "tsx src/cli.ts run",
+    "status": "tsx src/cli.ts status",
+    "list": "tsx src/cli.ts list",
+    "resume": "tsx src/cli.ts resume",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.2.1",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
