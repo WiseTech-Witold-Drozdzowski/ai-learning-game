@@ -7,7 +7,7 @@ import { loadConfig, inRepo, pickModel, type AiToolsConfig } from "./config.js";
 import { findIssueFiles, taskFromFile, taskFromText } from "./tasks.js";
 import { collectTodos, type TodoNote } from "./git.js";
 import { latestRun, listRuns, loadRun, newRun, saveRun } from "./state.js";
-import { acceptRun, resumeAt, runUntilPauseOrDone } from "./engine.js";
+import { acceptRun, restartFailedStage, resumeAt, runUntilPauseOrDone } from "./engine.js";
 import { addUsage, extractJson, runAgent } from "./claude.js";
 import { buildRouterPrompt, SYSTEM_PROMPT } from "./prompts.js";
 import { banner, renderHistoryTail, renderPipeline, renderSummary, STAGE_LABELS } from "./ui.js";
@@ -46,6 +46,15 @@ program
     const state = id ? loadRun(id) : latestRun();
     if (!state) return console.log(chalk.red("No runs to resume."));
     banner(`Resuming · ${state.id}`);
+    if (state.status === "failed") {
+      console.log(
+        chalk.yellow(
+          `  ↳ previous run failed (${state.message ?? "unknown"}).\n` +
+            `  ↳ restarting from "${STAGE_LABELS[state.currentStage]}" with a fresh attempt budget.`,
+        ),
+      );
+      restartFailedStage(state);
+    }
     await driveToCompletion(state, cfg);
   });
 

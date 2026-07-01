@@ -120,11 +120,15 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
       vSpinner.succeed(`Validation OK — ${validation.summary}`);
       state.currentStage = stage.next;
       state.message = undefined;
+      state.lastFailure = undefined;
     } else {
       vSpinner.fail(`Validation FAIL — ${validation.summary}`);
       if (validation.details) console.log(chalk.gray(indent(validation.details)));
       state.currentStage = validation.goBackTo ?? stage.back;
       state.message = `Rolling back to: ${STAGE_LABELS[state.currentStage]} — ${validation.summary}`;
+      // Carry the exact failure forward so the next attempt sees what actually broke
+      // instead of retrying blind (the root cause of stages burning all their attempts).
+      state.lastFailure = { stage: stage.id, summary: validation.summary, details: validation.details };
     }
     saveRun(state);
   }
@@ -142,6 +146,24 @@ function indent(text: string): string {
     .split("\n")
     .map((l) => `      │ ${l}`)
     .join("\n");
+}
+
+/**
+ * Prepare a failed run to be resumed from the stage it died on with a fresh budget.
+ *
+ * A run fails when a stage burns through its per-stage attempt limit or the workflow
+ * hits the total-iteration cap. In both cases the offending counters are still maxed
+ * out, so a plain `resume` would immediately re-trip the same limit at the top of the
+ * loop. Clearing the current stage's attempts and the global iteration counter lets the
+ * run restart from the same stage at attempt 0. No-op for runs that aren't failed.
+ */
+export function restartFailedStage(state: RunState): void {
+  if (state.status !== "failed") return;
+  state.attempts[state.currentStage] = 0;
+  state.totalIterations = 0;
+  state.status = "running";
+  state.message = `Restarted failed stage with a fresh budget: ${STAGE_LABELS[state.currentStage]}`;
+  saveRun(state);
 }
 
 /** Mark a paused run as accepted by the human. */

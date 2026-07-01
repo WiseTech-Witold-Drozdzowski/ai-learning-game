@@ -26,6 +26,31 @@ careercoach:
     # Email whitelist (TECHNICAL_DESIGN §7) — only these Google accounts may sign in.
     # Comma-separated via AUTH_EMAIL_WHITELIST; empty by default.
     whitelist: ${AUTH_EMAIL_WHITELIST:}
+  config:
+    # Default catalog seeded into the DB on startup (insert-if-absent, issue-2).
+    task-types:
+      - key: HONOR_CHECK
+        display-name: "Honor check"
+        verification-method: HONOR
+        exp-base: 10
+        exp-scale-by-score: false
+        requires-artifact: false
+      - key: HONOR_WITH_PROOF
+        display-name: "Honor check with proof"
+        verification-method: HONOR_WITH_PROOF
+        exp-base: 20
+        exp-scale-by-score: false
+        requires-artifact: true
+    skills:
+      - key: JAVA
+        display-name: "Java"
+        category: TECHNICAL
+      - key: SPRING
+        display-name: "Spring"
+        category: TECHNICAL
+      - key: COMMUNICATION
+        display-name: "Communication"
+        category: SOFT
 
 management:
   endpoints:

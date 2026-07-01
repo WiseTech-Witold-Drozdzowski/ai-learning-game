@@ -23,6 +23,30 @@ function taskBlock(state: RunState): string {
   return [`## Task: ${state.task.title}`, "", state.task.body].join("\n");
 }
 
+function truncate(text: string, max = 4000): string {
+  return text.length <= max ? text : `…(${text.length - max} chars trimmed)…\n${text.slice(-max)}`;
+}
+
+/**
+ * Retry note shown on attempts after the first. Includes the PREVIOUS attempt's
+ * validator output verbatim so the agent fixes the exact error rather than retrying
+ * blind — without this, a stage can burn its whole attempt budget repeating one mistake.
+ */
+function retryNote(state: RunState, attempt: number): string {
+  if (attempt <= 1) return "";
+  const lines = [
+    `\n(This is attempt #${attempt} of this stage — the previous attempt's validation FAILED. Fix EXACTLY what it reports below; do not start over.)`,
+  ];
+  const f = state.lastFailure;
+  if (f && f.stage === state.currentStage) {
+    lines.push(`Previous failure: ${f.summary}`);
+    if (f.details?.trim()) {
+      lines.push("Validator output (address these specific errors):", "```", truncate(f.details.trim()), "```");
+    }
+  }
+  return lines.join("\n");
+}
+
 function contextBlock(state: RunState): string {
   if (state.context.length === 0) return "";
   return [
@@ -73,9 +97,7 @@ function analysisHeader(cfg: AiToolsConfig, state: RunState, attempt: number): s
     docsBlock(cfg),
     "",
     contextBlock(state),
-    attempt > 1
-      ? `\n(This is attempt #${attempt} of this stage — the previous validation failed. Fix what failed.)`
-      : "",
+    retryNote(state, attempt),
   ].join("\n");
 }
 
@@ -98,9 +120,7 @@ function workHeader(cfg: AiToolsConfig, state: RunState, attempt: number, guidel
     contextBlock(state),
     "",
     docNote,
-    attempt > 1
-      ? `\n(This is attempt #${attempt} of this stage — the previous validation failed. Fix what failed.)`
-      : "",
+    retryNote(state, attempt),
   ].join("\n");
 }
 

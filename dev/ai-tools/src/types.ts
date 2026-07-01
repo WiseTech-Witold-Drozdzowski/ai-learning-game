@@ -107,4 +107,9 @@ export interface RunState {
   plan?: TaskPlan;
   totals: UsageDelta;
   message?: string;
+  /**
+   * The most recent failed validation, surfaced verbatim to the retrying agent so it
+   * can fix the exact error instead of retrying blind. Cleared when a validation passes.
+   */
+  lastFailure?: { stage: StageId; summary: string; details?: string };
 }

@@ -5,6 +5,12 @@ Guidelines for the **TDD** phase (stage 2). Tests are written BEFORE the impleme
 ## General rules
 
 - Framework: **JUnit 5** + **AssertJ** (assertions), **Mockito** for dependencies.
+- **Spring Boot 4 uses Jackson 3** — the `tools.jackson.*` namespace, NOT the old Jackson 2
+  `com.fasterxml.jackson.*` (which is not on the classpath and will fail to compile).
+  Import `ObjectMapper` from `tools.jackson.databind.ObjectMapper`. Likewise, web-slice tests
+  use the Boot 4 modularised packages: `@WebMvcTest` from
+  `org.springframework.boot.webmvc.test.autoconfigure`, and `@MockitoBean` from
+  `org.springframework.test.context.bean.override.mockito`.
 - Keep unit tests next to the class under test: `src/test/java/<same package>`.
 - Naming: `ClassTest` for units, methods `should<Behaviour>_when<Condition>()`.
 - One test = one behaviour. Clearly separate Arrange / Act / Assert with comments.

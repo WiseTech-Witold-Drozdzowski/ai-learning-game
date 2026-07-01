@@ -39,21 +39,26 @@ public class WhitelistOAuth2UserService implements OAuth2UserService<OAuth2UserR
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oauth2User = delegate.loadUser(userRequest);
-        String email = oauth2User.getAttribute("email");
+        validateUser(oauth2User);
+        User user = findOrCreateUser(oauth2User);
+        careerProfileService.getOrCreate(user.getId());
+        return oauth2User;
+    }
 
+    private void validateUser(OAuth2User oauth2User) {
+        String email = oauth2User.getAttribute("email");
         if (!emailWhitelist.permits(email)) {
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("access_denied", "Email not on whitelist", null),
                     "Email not on whitelist: " + email);
         }
+    }
 
+    private User findOrCreateUser(OAuth2User oauth2User) {
+        String email = oauth2User.getAttribute("email");
         String googleSub = oauth2User.getAttribute("sub");
         String displayName = oauth2User.getAttribute("name");
-        User user = userRepository.findByEmail(email)
+        return userRepository.findByEmail(email)
                 .orElseGet(() -> userRepository.save(new User(email, googleSub, displayName)));
-
-        careerProfileService.getOrCreate(user.getId());
-
-        return oauth2User;
     }
 }
