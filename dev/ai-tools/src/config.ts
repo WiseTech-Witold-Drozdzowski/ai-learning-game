@@ -20,11 +20,18 @@ export interface AiToolsConfig {
     compileTests: string;
     test: string;
   };
+  /** Paths (relative to repoRoot) to stage before human review / scan for TODOs. */
+  stagePaths: string[];
+  /** Comment markers the human leaves in code for the next iteration. */
+  todoMarkers: string[];
   maxAttemptsPerStage: number;
   maxTotalIterations: number;
   commandTimeoutMs: number;
   claude: {
+    /** Fallback model when no per-stage override is set. */
     model?: string;
+    /** Per-stage model overrides. */
+    models?: Partial<Record<StageId | "router", string>>;
     maxTurns: number;
     permissionMode: string;
     allowedTools: Record<StageId | "router", string[]>;
@@ -52,4 +59,9 @@ export function loadConfig(overridePath?: string): AiToolsConfig {
 /** Absolute path inside the repo root (where agents read docs / code). */
 export function inRepo(cfg: AiToolsConfig, ...parts: string[]): string {
   return resolve(cfg.repoRoot, ...parts);
+}
+
+/** Model for a given stage (per-stage override, falling back to claude.model). */
+export function pickModel(cfg: AiToolsConfig, stage: StageId | "router"): string | undefined {
+  return cfg.claude.models?.[stage] ?? cfg.claude.model;
 }

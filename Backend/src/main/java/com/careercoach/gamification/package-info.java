@@ -1,6 +1,7 @@
 /**
- * Module {@code gamification} — SKELETON (empty, to be implemented).
+ * Module {@code gamification} — exp roll-up, levels, avatar (BACKEND_DESIGN §2.5).
  *
- * <p>Exp (ledger + counters), skills, levels, avatar. BACKEND_DESIGN §2.5.
+ * <p>Layered: {@code domain} (entities/value types), {@code service}
+ * (application services), {@code repository} (Spring Data).
  */
 package com.careercoach.gamification;

@@ -7,22 +7,36 @@
   "implementationGuidelines": "docs/guidelines/IMPLEMENTATION_GUIDELINES.md",
   "contextDocs": [
     "docs/design/BACKEND_DESIGN.md",
-    "docs/design/TECHNICAL_DESIGN.md",
-    "docs/design/PRODUCT_DESIGN.md"
+    "docs/design/TECHNICAL_DESIGN.md"
   ],
+  "_commandsNote": "Compilation and tests run inside Docker (gradle:jdk25 image) — no local JAVA_HOME/Gradle needed, all via Backend/docker-compose.test.yml's 'test' service. Compile steps use --no-deps (Postgres not needed just to compile). 'test' starts the test-db via depends_on and runs gradle test against it; the throwaway Postgres is kept WARM between iterations (no down -v) for speed. Tear it down after a run with: cd Backend && docker compose -f docker-compose.test.yml -p career-coach-test down -v",
   "commands": {
-    "compileMain": "cd Backend && ./gradlew -q --console=plain compileJava",
-    "compileTests": "cd Backend && ./gradlew -q --console=plain compileTestJava",
-    "test": "cd Backend && ./gradlew --console=plain test"
+    "compileMain": "cd Backend && HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.test.yml -p career-coach-test run --rm --no-deps -T test gradle --no-daemon -q --console=plain compileJava",
+    "compileTests": "cd Backend && HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.test.yml -p career-coach-test run --rm --no-deps -T test gradle --no-daemon -q --console=plain compileTestJava",
+    "test": "cd Backend && HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker-compose.test.yml -p career-coach-test run --rm -T test gradle --no-daemon --console=plain test"
   },
+  "_stagingNote": "Before pausing for human review the tool runs `git add -A -- <stagePaths>` so the agent's work is staged; any // TODO the human then adds shows up as an unstaged diff and is extracted on the next iterate.",
+  "stagePaths": ["Backend"],
+  "todoMarkers": ["TODO", "FIXME"],
   "maxAttemptsPerStage": 3,
   "maxTotalIterations": 25,
   "commandTimeoutMs": 900000,
   "claude": {
+    "_modelsNote": "Per-stage model tiering. Opus writes the initial plan and the implementation; Sonnet handles interfaces, tests, reviews and routing.",
     "model": "claude-opus-4-8",
-    "maxTurns": 60,
+    "models": {
+      "analysis": "claude-opus-4-8",
+      "interface": "claude-sonnet-5",
+      "tdd": "claude-sonnet-5",
+      "review-tdd": "claude-sonnet-5",
+      "implementation": "claude-opus-4-8",
+      "review-solution": "claude-sonnet-5",
+      "router": "claude-sonnet-5"
+    },
+    "maxTurns": 40,
     "permissionMode": "acceptEdits",
     "allowedTools": {
+      "analysis": ["Read", "Glob", "Grep"],
       "interface": ["Read", "Write", "Edit", "Glob", "Grep"],
       "tdd": ["Read", "Write", "Edit", "Glob", "Grep"],
       "review-tdd": ["Read", "Glob", "Grep"],

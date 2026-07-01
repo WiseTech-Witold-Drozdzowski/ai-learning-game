@@ -1,4 +1,5 @@
 export type StageId =
+  | "analysis"
   | "interface"
   | "tdd"
   | "review-tdd"
@@ -47,6 +48,38 @@ export interface ReviewVerdict {
   goBackTo?: StageId;
 }
 
+export interface PlannedInterface {
+  /** Target file path, e.g. Backend/src/main/java/... */
+  file: string;
+  purpose: string;
+  /** Method signatures with a one-line contract each. */
+  methods: string[];
+}
+
+export interface PlannedTest {
+  file: string;
+  cases: string[];
+}
+
+/** Steps for which the analysis stage produces a focused, separate task note. */
+export type NotedStep = "interface" | "tdd" | "implementation";
+
+/**
+ * Compact, task-scoped plan produced once by the analysis stage so downstream
+ * stages don't each re-read the full design docs.
+ */
+export interface TaskPlan {
+  /** One paragraph: what this issue requires. */
+  scope: string;
+  interfaces: PlannedInterface[];
+  tests: PlannedTest[];
+  implementationNotes: string[];
+  /** Only the design points that matter for THIS issue. */
+  relevantDesign: string[];
+  /** Per-step focused notes; also written to a separate file per step under the run dir. */
+  stepNotes?: Partial<Record<NotedStep, string[]>>;
+}
+
 export interface HistoryEntry {
   ts: string;
   stage: StageId;
@@ -70,6 +103,8 @@ export interface RunState {
   history: HistoryEntry[];
   /** Extra context accumulated from reviews and the human. */
   context: string[];
+  /** Task-scoped plan produced by the analysis stage; consumed by later stages. */
+  plan?: TaskPlan;
   totals: UsageDelta;
   message?: string;
 }

@@ -1,6 +1,7 @@
 import type { AiToolsConfig } from "./config.js";
 import { extractJson } from "./claude.js";
 import {
+  buildAnalysisPrompt,
   buildImplementationPrompt,
   buildInterfacePrompt,
   buildReviewSolutionPrompt,
@@ -8,7 +9,8 @@ import {
   buildTddPrompt,
 } from "./prompts.js";
 import { validateCompileMain, validateTddRed, validateTestsGreen } from "./validators.js";
-import type { AgentResult, ReviewVerdict, RunState, StageId, ValidationResult } from "./types.js";
+import { writeStepTasks } from "./state.js";
+import type { AgentResult, ReviewVerdict, RunState, StageId, TaskPlan, ValidationResult } from "./types.js";
 
 export interface StageDef {
   id: StageId;
@@ -43,7 +45,44 @@ function parseVerdict(agent: AgentResult, defaultBack: StageId): ValidationResul
   };
 }
 
+/** Parse the analysis stage's JSON plan, validate it, and store it on the run state. */
+function validatePlan(state: RunState, agent: AgentResult): ValidationResult {
+  const plan = extractJson<TaskPlan>(agent.text);
+  if (!plan || !Array.isArray(plan.interfaces) || !Array.isArray(plan.tests)) {
+    return {
+      ok: false,
+      summary: "Could not read the plan (no valid JSON with interfaces/tests)",
+      details: agent.text.slice(-600),
+    };
+  }
+  if (plan.interfaces.length === 0 || plan.tests.length === 0) {
+    return { ok: false, summary: "Plan is empty — needs at least one interface and one test" };
+  }
+  state.plan = {
+    scope: plan.scope ?? "",
+    interfaces: plan.interfaces,
+    tests: plan.tests,
+    implementationNotes: plan.implementationNotes ?? [],
+    relevantDesign: plan.relevantDesign ?? [],
+    stepNotes: plan.stepNotes,
+  };
+  writeStepTasks(state); // one task file per step under .runs/<id>/
+  return {
+    ok: true,
+    summary: `Plan ready — ${plan.interfaces.length} interface(s), ${plan.tests.length} test file(s)`,
+  };
+}
+
 export const STAGES: Record<Exclude<StageId, "human-review">, StageDef> = {
+  analysis: {
+    id: "analysis",
+    buildPrompt: buildAnalysisPrompt,
+    tools: (c) => c.claude.allowedTools.analysis,
+    validate: async (_cfg, state, agent) => validatePlan(state, agent),
+    next: "interface",
+    back: "analysis",
+    isReview: false,
+  },
   interface: {
     id: "interface",
     buildPrompt: buildInterfacePrompt,

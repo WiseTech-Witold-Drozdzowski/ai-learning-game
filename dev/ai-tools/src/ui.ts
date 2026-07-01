@@ -1,8 +1,10 @@
+import ora, { type Ora } from "ora";
 import chalk from "chalk";
 import { totalTokens } from "./claude.js";
 import type { RunState, StageId, UsageDelta } from "./types.js";
 
 export const STAGE_ORDER: StageId[] = [
+  "analysis",
   "interface",
   "tdd",
   "review-tdd",
@@ -12,6 +14,7 @@ export const STAGE_ORDER: StageId[] = [
 ];
 
 export const STAGE_LABELS: Record<StageId, string> = {
+  analysis: "0. Analiza / plan",
   interface: "1. Interfaces (skeleton)",
   tdd: "2. TDD — tests (red)",
   "review-tdd": "3. Test review",
@@ -100,6 +103,138 @@ export function renderSummary(state: RunState): void {
   for (const [k, v] of rows) {
     console.log(`  ${k.padEnd(width)}  ${v}`);
   }
+}
+
+// --- Live agent activity -----------------------------------------------------
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+/** Last two path segments — enough to identify a file without flooding the line. */
+function shortPath(p?: string): string {
+  if (!p) return "";
+  return p.split(/[\\/]/).slice(-2).join("/");
+}
+
+function formatTool(name: string, input: Record<string, any>): string {
+  switch (name) {
+    case "Read":
+      return `📖 Read ${shortPath(input.file_path)}`;
+    case "Edit":
+    case "MultiEdit":
+      return `✏️  Edit ${shortPath(input.file_path)}`;
+    case "Write":
+      return `📝 Write ${shortPath(input.file_path)}`;
+    case "Bash":
+      return `❯ ${truncate(String(input.command ?? ""), 70)}`;
+    case "Grep":
+      return `🔎 Grep ${truncate(String(input.pattern ?? ""), 50)}`;
+    case "Glob":
+      return `🔎 Glob ${truncate(String(input.pattern ?? ""), 50)}`;
+    default:
+      return `🔧 ${name}`;
+  }
+}
+
+/** Turn one streamed event into zero or more human-readable activity lines. */
+export function describeEvent(ev: any): string[] {
+  if (!ev || ev.type !== "assistant") return [];
+  const content = ev.message?.content;
+  if (!Array.isArray(content)) return [];
+  const out: string[] = [];
+  for (const b of content) {
+    if (b?.type === "tool_use") {
+      out.push(formatTool(String(b.name ?? "?"), b.input ?? {}));
+    } else if (b?.type === "text" && typeof b.text === "string") {
+      const line = b.text.trim().split("\n").find((l: string) => l.trim().length > 0);
+      if (line) out.push(`💬 ${truncate(line.trim(), 80)}`);
+    }
+  }
+  return out;
+}
+
+export interface LiveStage {
+  /** Feed a streamed agent event; updates the spinner (and verbose log if toggled). */
+  onEvent(ev: any): void;
+  succeed(text: string): void;
+  fail(text: string): void;
+  stop(): void;
+}
+
+/**
+ * Spinner that shows the agent's latest action live. Press `v` to toggle a verbose
+ * mode that also prints every action as a persistent line (full trace).
+ */
+export function startLiveStage(baseText: string): LiveStage {
+  const spinner = ora({ text: baseText, spinner: "dots" }).start();
+  let verbose = false;
+  let last = "";
+
+  const stdin = process.stdin;
+  const isTty = Boolean(stdin.isTTY);
+
+  // Print a persistent line without corrupting the spinner's current line.
+  const note = (line: string): void => {
+    const keep = spinner.text;
+    spinner.stop();
+    console.log(line);
+    spinner.start(keep);
+  };
+
+  const onData = (b: Buffer): void => {
+    const k = b.toString();
+    if (k === "v" || k === "V") {
+      verbose = !verbose;
+      note(chalk.gray(`      › verbose ${verbose ? "ON" : "OFF"} (toggle with "v")`));
+    } else if (k.charCodeAt(0) === 3) {
+      cleanup();
+      spinner.stop();
+      process.exit(130); // Ctrl+C while in raw mode
+    }
+  };
+
+  function cleanup(): void {
+    if (!isTty) return;
+    stdin.off("data", onData);
+    stdin.setRawMode?.(false);
+    stdin.pause();
+  }
+
+  if (isTty) {
+    stdin.setRawMode?.(true);
+    stdin.resume();
+    stdin.on("data", onData);
+    spinner.suffixText = chalk.gray('  (press "v" for live detail)');
+  }
+
+  const render = (): void => {
+    spinner.text = last ? `${baseText}  ${chalk.gray("· ▸")} ${chalk.white(last)}` : baseText;
+  };
+
+  return {
+    onEvent(ev: any): void {
+      for (const line of describeEvent(ev)) {
+        last = line;
+        if (verbose) note(chalk.gray(`      │ ${line}`));
+      }
+      render();
+    },
+    succeed(text: string): void {
+      cleanup();
+      spinner.suffixText = "";
+      spinner.succeed(text);
+    },
+    fail(text: string): void {
+      cleanup();
+      spinner.suffixText = "";
+      spinner.fail(text);
+    },
+    stop(): void {
+      cleanup();
+      spinner.stop();
+    },
+  };
 }
 
 export function renderHistoryTail(state: RunState, n = 8): void {

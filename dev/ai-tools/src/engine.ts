@@ -1,11 +1,13 @@
 import ora from "ora";
 import chalk from "chalk";
 import type { AiToolsConfig } from "./config.js";
+import { pickModel } from "./config.js";
 import { addUsage, runAgent } from "./claude.js";
+import { stageChanges } from "./git.js";
 import { getStage } from "./stages.js";
 import { saveRun } from "./state.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
-import { renderUsageLine, STAGE_LABELS } from "./ui.js";
+import { renderUsageLine, startLiveStage, STAGE_LABELS } from "./ui.js";
 import type { AgentResult, HistoryEntry, RunState, StageId, ValidationResult } from "./types.js";
 
 function record(state: RunState, entry: Omit<HistoryEntry, "ts">): void {
@@ -21,6 +23,13 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
 
   while (true) {
     if (state.currentStage === "human-review") {
+      // Stage the agent's work so the human's later `// TODO` edits are an unstaged diff.
+      const staged = await stageChanges(cfg.repoRoot, cfg.stagePaths, cfg.commandTimeoutMs);
+      console.log(
+        staged.ok
+          ? chalk.gray(`  ↳ staged changes under ${cfg.stagePaths.join(", ")} for human review`)
+          : chalk.yellow(`  ↳ could not stage changes: ${staged.error ?? "unknown"}`),
+      );
       state.status = "paused";
       state.message = "Waiting for human review (resume / accept).";
       saveRun(state);
@@ -42,10 +51,9 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
 
     // --- CREATE / REVIEW step (agent) ---
     const verb = stage.isReview ? "Review" : "Create";
-    const spinner = ora({
-      text: `${chalk.cyan(STAGE_LABELS[stage.id])} — ${verb} (attempt ${attempt}/${cfg.maxAttemptsPerStage})`,
-      spinner: "dots",
-    }).start();
+    const live = startLiveStage(
+      `${chalk.cyan(STAGE_LABELS[stage.id])} — ${verb} (attempt ${attempt}/${cfg.maxAttemptsPerStage})`,
+    );
 
     let agent: AgentResult;
     try {
@@ -54,12 +62,13 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
         systemPrompt: SYSTEM_PROMPT,
         allowedTools: stage.tools(cfg),
         cwd: cfg.repoRoot,
-        model: cfg.claude.model,
+        model: pickModel(cfg, stage.id),
         maxTurns: cfg.claude.maxTurns,
         permissionMode: cfg.claude.permissionMode,
+        onEvent: live.onEvent,
       });
     } catch (err) {
-      spinner.fail(`${STAGE_LABELS[stage.id]} — agent error`);
+      live.fail(`${STAGE_LABELS[stage.id]} — agent error`);
       return fail(state, `Agent threw an exception: ${String(err)}`);
     }
 
@@ -74,9 +83,9 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
     });
 
     if (agent.ok) {
-      spinner.succeed(`${STAGE_LABELS[stage.id]} — ${verb} OK`);
+      live.succeed(`${STAGE_LABELS[stage.id]} — ${verb} OK`);
     } else {
-      spinner.fail(`${STAGE_LABELS[stage.id]} — ${verb} failed`);
+      live.fail(`${STAGE_LABELS[stage.id]} — ${verb} failed`);
     }
     renderUsageLine(`${verb}`, agent.usage);
     saveRun(state);

@@ -21,6 +21,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+careercoach:
+  auth:
+    # Email whitelist (TECHNICAL_DESIGN §7) — only these Google accounts may sign in.
+    # Comma-separated via AUTH_EMAIL_WHITELIST; empty by default.
+    whitelist: ${AUTH_EMAIL_WHITELIST:}
+
 management:
   endpoints:
     web:

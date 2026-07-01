@@ -1,10 +1,11 @@
 #!/usr/bin/env -S npx tsx
 import { Command } from "commander";
 import chalk from "chalk";
-import { editor, input, select } from "@inquirer/prompts";
+import { editor, select } from "@inquirer/prompts";
 import { resolve } from "node:path";
-import { loadConfig, inRepo, type AiToolsConfig } from "./config.js";
+import { loadConfig, inRepo, pickModel, type AiToolsConfig } from "./config.js";
 import { findIssueFiles, taskFromFile, taskFromText } from "./tasks.js";
+import { collectTodos, type TodoNote } from "./git.js";
 import { latestRun, listRuns, loadRun, newRun, saveRun } from "./state.js";
 import { acceptRun, resumeAt, runUntilPauseOrDone } from "./engine.js";
 import { addUsage, extractJson, runAgent } from "./claude.js";
@@ -90,18 +91,24 @@ async function resolveTask(cfg: AiToolsConfig, opts: { task?: string; file?: str
   if (opts.task) return taskFromText(opts.task);
   if (opts.file) return taskFromFile(resolve(process.cwd(), opts.file));
 
-  const issues = findIssueFiles(cfg);
-  if (issues.length > 0) {
-    const choice = await select({
-      message: `Pick a task (found issue* files in ${cfg.docsDir})`,
-      choices: [
-        ...issues.map((i) => ({ name: i.name, value: i.path })),
-        { name: chalk.gray("✎ Paste manually…"), value: "__paste__" },
-      ],
-    });
-    if (choice !== "__paste__") return taskFromFile(choice);
-  } else {
-    console.log(chalk.gray(`No issue* files found in ${inRepo(cfg, cfg.docsDir)} — paste the task manually.`));
+  const mode = await select({
+    message: "How do you want to provide the task?",
+    choices: [
+      { name: "Select issue", value: "issue" },
+      { name: "Write task content", value: "paste" },
+    ],
+  });
+
+  if (mode === "issue") {
+    const issues = findIssueFiles(cfg);
+    if (issues.length > 0) {
+      const choice = await select({
+        message: `Pick an issue (found under ${cfg.docsDir})`,
+        choices: issues.map((i) => ({ name: i.name, value: i.path })),
+      });
+      return taskFromFile(choice);
+    }
+    console.log(chalk.gray(`No issue* files found under ${inRepo(cfg, cfg.docsDir)} — paste the task manually.`));
   }
 
   const body = await editor({ message: "Paste the task content (save and close the editor)", waitForUserInput: false });
@@ -157,11 +164,63 @@ async function driveToCompletion(state: RunState, cfg: AiToolsConfig): Promise<v
     }
 
     // iterate
-    const note = await input({ message: "Note / extra context for the agent:" });
-    const target = await decideGoBack(state, cfg, note);
-    resumeAt(state, target, note);
-    console.log(chalk.cyan(`\n↻ Agent decided to resume from: ${STAGE_LABELS[target]}`));
+    const todos = await collectTodos(cfg.repoRoot, cfg.stagePaths, cfg.todoMarkers, cfg.commandTimeoutMs);
+    if (todos.length) {
+      console.log(chalk.bold(`\nFound ${todos.length} TODO marker(s) in your edits:`));
+      for (const t of todos) console.log(chalk.gray(`  • ${t.file}:${t.line} — ${t.text}`));
+    } else {
+      console.log(chalk.gray("\nNo TODO markers found in your edits (working tree vs staged)."));
+    }
+
+    console.log(
+      chalk.gray(
+        "\nAdd extra context: what is generally wrong / what should change (save & close the editor; leave empty to skip).",
+      ),
+    );
+    console.log(
+      chalk.gray(
+        "By default the iteration resumes from Implementation (fast). Mention a rewrite/redesign " +
+          "(e.g. \"przepisz\", \"od nowa\", \"interfejs\", \"kontrakt\", \"rewrite\") to route further back.",
+      ),
+    );
+    const note = await editor({
+      message: "What's generally wrong? Extra context for the agent (optional)",
+      waitForUserInput: false,
+    });
+    const feedback = buildFeedback(note, todos);
+    // Default to the shortest loop (implementation). Only consult the router when the human
+    // explicitly asks for a rewrite/redesign that may need earlier stages.
+    let target: StageId = "implementation";
+    if (wantsRewrite(note)) {
+      target = await decideGoBack(state, cfg, feedback);
+    } else {
+      console.log(chalk.gray("  No rewrite requested — resuming from Implementation (skipping the router)."));
+    }
+    // Surface the human TODOs to every downstream stage via the run context.
+    for (const t of todos) state.context.push(`[human TODO] ${t.file}:${t.line} — ${t.text}`);
+    resumeAt(state, target, note || "(see human TODO notes)");
+    console.log(chalk.cyan(`\n↻ Resuming from: ${STAGE_LABELS[target]}`));
   }
+}
+
+/** True when the human's note signals a rewrite/redesign that may need an earlier stage. */
+function wantsRewrite(note: string): boolean {
+  const re =
+    /\b(przepis\w*|od nowa|od zera|przeprojekt\w*|interfejs\w*|kontrakt\w*|sygnatur\w*|architekt\w*|rewrite|redesign|re-?write|from scratch|scratch|interface|contract|signature)\b/i;
+  return re.test(note);
+}
+
+/** Combine the human's free-text note with the extracted TODO markers for the router. */
+function buildFeedback(note: string, todos: TodoNote[]): string {
+  const parts: string[] = [];
+  if (note.trim()) parts.push(note.trim());
+  if (todos.length) {
+    parts.push(
+      "Human TODO markers left in the code:",
+      ...todos.map((t) => `- ${t.file}:${t.line} — ${t.text}`),
+    );
+  }
+  return parts.join("\n") || "(no note)";
 }
 
 function printLastReview(state: RunState): void {
@@ -177,7 +236,7 @@ async function decideGoBack(state: RunState, cfg: AiToolsConfig, note: string): 
     systemPrompt: SYSTEM_PROMPT,
     allowedTools: cfg.claude.allowedTools.router,
     cwd: cfg.repoRoot,
-    model: cfg.claude.model,
+    model: pickModel(cfg, "router"),
     maxTurns: 10,
     permissionMode: cfg.claude.permissionMode,
   });

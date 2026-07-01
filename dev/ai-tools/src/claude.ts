@@ -37,17 +37,23 @@ export interface RunAgentOptions {
   model?: string;
   maxTurns: number;
   permissionMode: string;
+  /** Called for every streamed event (assistant messages, tool calls, …) as the agent works. */
+  onEvent?: (ev: any) => void;
 }
 
 /**
  * Run a single Claude CLI agent in headless mode and collect its result + token usage.
  * The prompt is fed via stdin so large prompts don't hit argv limits.
+ *
+ * Uses `stream-json` so events (tool calls, text) arrive live and can be surfaced via
+ * `onEvent`. The final `result` event carries the same fields the old `json` mode returned.
  */
 export function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
   const args = [
     "-p",
     "--output-format",
-    "json",
+    "stream-json",
+    "--verbose",
     "--permission-mode",
     opts.permissionMode,
     "--max-turns",
@@ -69,9 +75,28 @@ export function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    let stdout = "";
+    let buf = "";
     let stderr = "";
-    child.stdout.on("data", (d) => (stdout += d.toString()));
+    let resultEvent: any = null;
+
+    const handleLine = (line: string): void => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const ev = tryParse(trimmed);
+      if (!ev) return;
+      if (ev.type === "result") resultEvent = ev;
+      opts.onEvent?.(ev);
+    };
+
+    child.stdout.on("data", (d) => {
+      buf += d.toString();
+      let idx: number;
+      while ((idx = buf.indexOf("\n")) !== -1) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        handleLine(line);
+      }
+    });
     child.stderr.on("data", (d) => (stderr += d.toString()));
 
     child.on("error", (err) => {
@@ -84,13 +109,14 @@ export function runAgent(opts: RunAgentOptions): Promise<AgentResult> {
     });
 
     child.on("close", (code) => {
-      const json = tryParse(stdout);
+      if (buf.trim()) handleLine(buf); // flush any trailing partial line
+      const json = resultEvent;
       if (!json) {
         resolvePromise({
           ok: false,
-          text: stdout,
+          text: "",
           usage: zeroUsage(),
-          error: `could not parse claude JSON (exit ${code}). stderr: ${stderr.slice(0, 800)}`,
+          error: `no result event from claude (exit ${code}). stderr: ${stderr.slice(0, 800)}`,
         });
         return;
       }

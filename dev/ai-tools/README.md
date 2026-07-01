@@ -10,6 +10,7 @@ Each stage = **create/agent** → **validate/script**. Validation decides the tr
 
 | # | Stage | Creates (agent) | Validation (programmatic) | OK → | FAIL → |
 |---|-------|-----------------|----------------------------|------|--------|
+| 0 | Analysis / plan | reads the docs **once** → compact task plan (interfaces + tests + impl notes) | JSON plan with ≥1 interface & ≥1 test | 1 | 0 |
 | 1 | Interfaces | interfaces + method stubs (`throw NotImplemented`) | `compileJava` passes | 2 | 1 |
 | 2 | TDD (red) | tests per `TEST_GUIDELINES.md` | tests compile **and fail** | 3 | 2 |
 | 3 | Test review | another agent rates edge-case coverage | parse `pass/fail` verdict | 4 | 2 |
@@ -17,8 +18,26 @@ Each stage = **create/agent** → **validate/script**. Validation decides the tr
 | 5 | Full review | agent rates the whole solution | parse `pass/fail` verdict | 5.2 | (agent's choice) |
 | 5.2 | Human review | — | you: accept / iterate (agent decides where to roll back) | done | any stage |
 
+**Stage 0 (analysis)** is the only stage that reads the full design docs. It emits a task-scoped plan that
+every later stage follows *without* re-reading the docs — this is the main speed lever (fewer agent turns).
+It also writes a **focused task note per step** to `.runs/<id>/{1-interface,2-tdd,4-implementation}.md` (naming
+the exact files each step should touch, and warning it not to delete/rewrite existing code). Each step reads
+only its own note; if you edit the file before the step runs, your version wins over the generated one.
+
+**Human review & `// TODO` feedback:** just before pausing at 5.2 the tool runs `git add -A -- <stagePaths>`
+(default `Backend/`), so any `// TODO`/`// FIXME` you then add to the code shows up as an *unstaged* diff.
+On **iterate**, those markers are extracted (`file:line — text`), shown to you, and injected into every
+downstream stage's context as required work (the agent removes the comment once addressed). You also get a
+multi-line editor to describe *what is generally wrong*. **By default iterate resumes from Implementation**
+(the shortest loop, and it skips the routing agent). Only when your note mentions a rewrite/redesign
+(`przepisz`, `od nowa`, `interfejs`, `kontrakt`, `rewrite`, `redesign`, …) does the routing agent decide
+whether to go further back (interface / tdd / implementation).
+
 Each stage has an **attempt limit** (`maxAttemptsPerStage`); the whole run has an **iteration limit**
 (`maxTotalIterations`). State and context flow between stages (review notes and human notes feed back into the prompts).
+
+**Model tiering** (`claude.models`): Opus writes the plan (0) and the implementation (4); Sonnet handles
+interfaces (1), tests (2), reviews (3, 5) and routing.
 
 ## Requirements
 
@@ -58,7 +77,10 @@ agent calls, from Claude CLI's `--output-format json`).
 - `commands.{compileMain,compileTests,test}` — validation commands (Gradle in `Backend/` by default).
 - `contextDocs`, `testGuidelines`, `implementationGuidelines` — documents agents read.
 - `maxAttemptsPerStage`, `maxTotalIterations`, `commandTimeoutMs`.
-- `claude.{model,maxTurns,permissionMode,allowedTools}` — per-stage allowed-tools list.
+- `stagePaths` — paths staged before human review / scanned for `// TODO` (default `["Backend"]`).
+- `todoMarkers` — comment markers extracted from your edits on iterate (default `["TODO","FIXME"]`).
+- `claude.{model,models,maxTurns,permissionMode,allowedTools}` — `model` is the fallback; `models` sets the
+  per-stage model; `allowedTools` sets the per-stage allowed-tools list.
 
 Agents only get `Read/Write/Edit/Glob/Grep` (review stages: read-only). **Agents do not run tests or
 compilation — the validation script does**, by design.
