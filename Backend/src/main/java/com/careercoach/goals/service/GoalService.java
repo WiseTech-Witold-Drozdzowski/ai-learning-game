@@ -3,6 +3,7 @@ package com.careercoach.goals.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -62,10 +63,9 @@ public class GoalService {
 
     public Goal accept(Long id) {
         Goal goal = goalRepository.findById(id)
-                .orElseThrow(() -> new GoalNotFoundException("Goal not found: " + id));
+                .orElseThrow(() -> new GoalNotFoundException(id));
         if (goal.getState() != GoalState.PROPOSED) {
-            throw new IllegalGoalStateTransitionException(
-                    "Cannot accept goal " + id + " in state " + goal.getState());
+            throw new IllegalGoalStateTransitionException(id, "accept", goal.getState());
         }
         goal.setState(GoalState.ACTIVE);
         return goalRepository.save(goal);
@@ -73,13 +73,26 @@ public class GoalService {
 
     public Goal close(Long id) {
         Goal goal = goalRepository.findById(id)
-                .orElseThrow(() -> new GoalNotFoundException("Goal not found: " + id));
+                .orElseThrow(() -> new GoalNotFoundException(id));
         if (goal.getState() != GoalState.ACTIVE) {
-            throw new IllegalGoalStateTransitionException(
-                    "Cannot close goal " + id + " in state " + goal.getState());
+            throw new IllegalGoalStateTransitionException(id, "close", goal.getState());
         }
         goal.setState(GoalState.CLOSED);
         return goalRepository.save(goal);
+    }
+
+    public void bubbleExp(Long goalId, long amount) {
+        Long currentId = goalId;
+        while (currentId != null) {
+            Optional<Goal> found = goalRepository.findById(currentId);
+            if (found.isEmpty()) {
+                throw new GoalNotFoundException(currentId);
+            }
+            Goal goal = found.get();
+            goal.setExpEarned(goal.getExpEarned() + amount);
+            goalRepository.save(goal);
+            currentId = goal.getParentId();
+        }
     }
 
     private GoalNode buildNode(Goal goal, Map<Long, List<Goal>> byParent) {
@@ -87,16 +100,17 @@ public class GoalService {
         for (Goal child : byParent.getOrDefault(goal.getId(), List.of())) {
             children.add(buildNode(child, byParent));
         }
-        return new GoalNode(
-                goal.getId(),
-                goal.getParentId(),
-                goal.getKind(),
-                goal.getTitle(),
-                goal.getDescription(),
-                goal.getState(),
-                goal.getCreatedBy(),
-                goal.getOrderIndex(),
-                goal.getExpEarned(),
-                children);
+        return GoalNode.builder()
+                .id(goal.getId())
+                .parentId(goal.getParentId())
+                .kind(goal.getKind())
+                .title(goal.getTitle())
+                .description(goal.getDescription())
+                .state(goal.getState())
+                .createdBy(goal.getCreatedBy())
+                .orderIndex(goal.getOrderIndex())
+                .expEarned(goal.getExpEarned())
+                .children(children)
+                .build();
     }
 }

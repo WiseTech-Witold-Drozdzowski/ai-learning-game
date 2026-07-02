@@ -6,7 +6,7 @@ import type { NotedStep, RunState, StageId } from "./types.js";
 export const SYSTEM_PROMPT =
   "You are an agent in an automated, multi-stage developer workflow. " +
   "You work inside the repository directory. Do EXACTLY the scope of your stage — nothing more. " +
-  "Do not run tests or compilation yourself (a validation script does that after you). " +
+  "Do NOT compile or run tests yourself — a validation script does that after you; if you ever must, do it ONLY via Docker (Backend/run-tests.sh), never `./gradlew` on the host (there is no local JDK). " +
   "Be concise in your summaries.";
 
 function docsBlock(cfg: AiToolsConfig): string {
@@ -213,7 +213,7 @@ export function buildImplementationPrompt(cfg: AiToolsConfig, state: RunState, a
     "- Fill in the methods named in the plan; keep changes minimal and do not rewrite unrelated code.",
     "- Do not weaken the tests to make them pass. If a test is clearly wrong, state that in your summary.",
     "- Remove `NotImplementedException` from the paths covered by the task and add the real logic.",
-    "Validation after you: `./gradlew test` must pass entirely.",
+    "Validation after you: the full test suite (run via Docker, Backend/run-tests.sh) must pass entirely.",
     "At the end, list the changed files and give a short summary of your approach.",
   ].join("\n");
 }

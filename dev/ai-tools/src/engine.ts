@@ -6,6 +6,7 @@ import { addUsage, runAgent } from "./claude.js";
 import { stageChanges } from "./git.js";
 import { getStage } from "./stages.js";
 import { saveRun } from "./state.js";
+import { logAgentEvent, logAgentResult } from "./runlog.js";
 import { SYSTEM_PROMPT } from "./prompts.js";
 import { renderUsageLine, startLiveStage, STAGE_LABELS } from "./ui.js";
 import type { AgentResult, HistoryEntry, RunState, StageId, ValidationResult } from "./types.js";
@@ -55,6 +56,7 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
       `${chalk.cyan(STAGE_LABELS[stage.id])} — ${verb} (attempt ${attempt}/${cfg.maxAttemptsPerStage})`,
     );
 
+    const model = pickModel(cfg, stage.id);
     let agent: AgentResult;
     try {
       agent = await runAgent({
@@ -62,16 +64,20 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
         systemPrompt: SYSTEM_PROMPT,
         allowedTools: stage.tools(cfg),
         cwd: cfg.repoRoot,
-        model: pickModel(cfg, stage.id),
+        model,
         maxTurns: cfg.claude.maxTurns,
         permissionMode: cfg.claude.permissionMode,
-        onEvent: live.onEvent,
+        onEvent: (ev) => {
+          live.onEvent(ev);
+          logAgentEvent(state.id, stage.id, attempt, ev);
+        },
       });
     } catch (err) {
       live.fail(`${STAGE_LABELS[stage.id]} — agent error`);
       return fail(state, `Agent threw an exception: ${String(err)}`);
     }
 
+    logAgentResult(state.id, stage.id, attempt, agent);
     state.totals = addUsage(state.totals, agent.usage);
     record(state, {
       stage: stage.id,
@@ -80,6 +86,7 @@ export async function runUntilPauseOrDone(state: RunState, cfg: AiToolsConfig): 
       ok: agent.ok,
       summary: agent.ok ? `${verb} done` : `Agent error: ${agent.error ?? "unknown"}`,
       usage: agent.usage,
+      model,
     });
 
     if (agent.ok) {

@@ -68,8 +68,9 @@ npm run list
 npm run resume -- <id>
 ```
 
-At the end (and in `status`) it prints a summary of **tokens used and cost** (aggregated across all
-agent calls, from Claude CLI's `--output-format json`).
+At the end (and in `status`) it prints a **per-agent usage breakdown** — one row per pipeline stage
+(model, tokens, cost, turns, time, with a `(xN)` marker when a stage retried) plus the aggregated
+total, all from Claude CLI's streamed usage.
 
 ## Configuration — `config/default.json`
 
@@ -87,4 +88,16 @@ compilation — the validation script does**, by design.
 
 ## State
 
-Runs are stored in `dev/ai-tools/.runs/<id>.json` (step history, context, usage). Safe to resume.
+Runs are stored in `dev/ai-tools/.runs/<id>.json` (step history, context, per-stage usage & model).
+Safe to resume. Alongside it, each run gets a `.runs/<id>/` directory with:
+
+- `1-interface.md` / `2-tdd.md` / `4-implementation.md` — the per-step task notes (editable before a step runs).
+- `steps.jsonl` — every agent action (tool calls, text, per-call result) as one JSON line each.
+- `outputs/<stage>-attempt<N>.md` — each agent's full final output (plan JSON, review verdicts, summaries).
+
+## Optimizing the pipeline
+
+The `steps.jsonl` + `outputs/` logs are what the **`optimize-ai-tools`** skill consumes to analyze a run
+and propose cost/time optimizations (prompt edits, per-stage model/tool/limit changes). Run it after a
+run — e.g. ask *"optimize ai-tools"* or *"why was that run so expensive"* — and it reports a per-stage
+cost breakdown, the concrete inefficiencies it found (with evidence lines), and the changes to apply.

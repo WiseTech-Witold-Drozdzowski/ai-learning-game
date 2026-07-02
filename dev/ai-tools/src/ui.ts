@@ -1,6 +1,6 @@
 import ora, { type Ora } from "ora";
 import chalk from "chalk";
-import { totalTokens } from "./claude.js";
+import { addUsage, totalTokens, zeroUsage } from "./claude.js";
 import type { RunState, StageId, UsageDelta } from "./types.js";
 
 export const STAGE_ORDER: StageId[] = [
@@ -31,11 +31,22 @@ const STATUS_COLOR: Record<RunState["status"], (s: string) => string> = {
 };
 
 function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
 function fmtUsd(n: number): string {
   return `$${n.toFixed(4)}`;
+}
+
+function fmtDur(ms: number): string {
+  const s = ms / 1000;
+  return s >= 120 ? `${(s / 60).toFixed(1)}m` : `${s.toFixed(0)}s`;
+}
+
+/** "claude-opus-4-8" → "opus-4-8" so it fits a table column. */
+function shortModel(m?: string): string {
+  return (m ?? "?").replace(/^claude-/, "");
 }
 
 export function banner(text: string): void {
@@ -85,9 +96,61 @@ export function renderUsageLine(label: string, usage: UsageDelta): void {
   );
 }
 
+interface AgentAgg {
+  stage: StageId;
+  model?: string;
+  usage: UsageDelta;
+  attempts: number;
+}
+
+/** Roll up every agent (create/review) call by stage: summed usage, model, and attempt count. */
+function aggregateByStage(state: RunState): AgentAgg[] {
+  const byStage = new Map<StageId, AgentAgg>();
+  for (const h of state.history) {
+    if (h.phase === "validate" || !h.usage) continue;
+    const cur = byStage.get(h.stage) ?? { stage: h.stage, model: h.model, usage: zeroUsage(), attempts: 0 };
+    cur.usage = addUsage(cur.usage, h.usage);
+    cur.attempts += 1;
+    if (!cur.model && h.model) cur.model = h.model;
+    byStage.set(h.stage, cur);
+  }
+  return STAGE_ORDER.filter((s) => byStage.has(s)).map((s) => byStage.get(s)!);
+}
+
+/** Per-agent (per-stage) token / cost / time breakdown — how much each agent consumed. */
+export function renderPerAgentUsage(state: RunState): void {
+  const rows = aggregateByStage(state);
+  if (rows.length === 0) return;
+
+  console.log(chalk.bold("\nPer-agent usage"));
+  const head = ["stage", "model", "tok", "cost", "turns", "time"];
+  const cells = rows.map((r) => [
+    r.attempts > 1 ? `${r.stage} (x${r.attempts})` : r.stage,
+    shortModel(r.model),
+    fmtTokens(totalTokens(r.usage)),
+    fmtUsd(r.usage.costUsd),
+    String(r.usage.numTurns),
+    fmtDur(r.usage.durationMs),
+  ]);
+  const t = state.totals;
+  const totalRow = ["TOTAL", "", fmtTokens(totalTokens(t)), fmtUsd(t.costUsd), String(t.numTurns), fmtDur(t.durationMs)];
+
+  const all = [head, ...cells, totalRow];
+  const w = head.map((_, c) => Math.max(...all.map((row) => (row[c] ?? "").length)));
+  const leftCols = new Set([0, 1]); // stage & model are left-aligned; numbers right-aligned
+  const fmtRow = (row: string[]): string =>
+    "  " + row.map((v, c) => (leftCols.has(c) ? v.padEnd(w[c] ?? 0) : v.padStart(w[c] ?? 0))).join("  ");
+
+  console.log(chalk.gray(fmtRow(head)));
+  for (const row of cells) console.log(fmtRow(row));
+  console.log(chalk.gray("  " + "─".repeat(w.reduce((a, b) => a + b, 0) + (w.length - 1) * 2)));
+  console.log(chalk.bold(fmtRow(totalRow)));
+}
+
 /** Final token / cost summary table. */
 export function renderSummary(state: RunState): void {
   const t = state.totals;
+  renderPerAgentUsage(state);
   banner("Usage summary");
   const rows: [string, string][] = [
     ["Input tokens", fmtTokens(t.inputTokens)],

@@ -88,6 +88,8 @@ export interface HistoryEntry {
   ok: boolean;
   summary: string;
   usage?: UsageDelta;
+  /** Model that produced this step (create/review phases only) — enables the per-agent cost breakdown. */
+  model?: string;
 }
 
 export interface RunState {

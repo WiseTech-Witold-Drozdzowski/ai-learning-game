@@ -6,6 +6,9 @@ import com.careercoach.goals.domain.GoalCreatedBy;
 import com.careercoach.goals.domain.GoalKind;
 import com.careercoach.goals.domain.GoalState;
 
+import lombok.Builder;
+
+@Builder
 public record GoalNode(
         Long id,
         Long parentId,

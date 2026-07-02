@@ -10,12 +10,12 @@ import com.careercoach.gamification.repository.CareerProfileRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class CareerProfileService {
 
     private final CareerProfileRepository careerProfileRepository;
 
-    @Transactional
     public CareerProfile getOrCreate(Long userId) {
         return careerProfileRepository.findById(userId)
                 .orElseGet(() -> careerProfileRepository.save(
@@ -26,5 +26,13 @@ public class CareerProfileService {
     public CareerProfile getForUser(Long userId) {
         return careerProfileRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("No career profile provisioned for user " + userId));
+    }
+
+    public CareerProfile addExp(Long userId, long amount) {
+        CareerProfile profile = careerProfileRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("No career profile provisioned for user " + userId));
+        profile.setTotalExp(profile.getTotalExp() + amount);
+        profile.setLevel(LevelCurve.levelForExp(profile.getTotalExp()));
+        return careerProfileRepository.save(profile);
     }
 }
