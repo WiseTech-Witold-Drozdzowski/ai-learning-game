@@ -7,6 +7,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 /** dev/ai-tools */
 export const TOOL_ROOT = resolve(HERE, "..");
 
+/** Keys addressable for per-agent model / tool config: the pipeline stages plus the router and the master-agent rescue. */
+export type AgentKey = StageId | "router" | "master-agent";
+
 export interface AiToolsConfig {
   /** Absolute cwd for Claude agents and validation commands. */
   repoRoot: string;
@@ -26,15 +29,17 @@ export interface AiToolsConfig {
   todoMarkers: string[];
   maxAttemptsPerStage: number;
   maxTotalIterations: number;
+  /** How many times the master-agent may be invoked to unblock a single stuck stage before the run fails. */
+  maxMasterInterventions: number;
   commandTimeoutMs: number;
   claude: {
     /** Fallback model when no per-stage override is set. */
     model?: string;
-    /** Per-stage model overrides. */
-    models?: Partial<Record<StageId | "router", string>>;
+    /** Per-agent model overrides (stages + router + master-agent). */
+    models?: Partial<Record<AgentKey, string>>;
     maxTurns: number;
     permissionMode: string;
-    allowedTools: Record<StageId | "router", string[]>;
+    allowedTools: Record<AgentKey, string[]>;
   };
 }
 
@@ -61,7 +66,7 @@ export function inRepo(cfg: AiToolsConfig, ...parts: string[]): string {
   return resolve(cfg.repoRoot, ...parts);
 }
 
-/** Model for a given stage (per-stage override, falling back to claude.model). */
-export function pickModel(cfg: AiToolsConfig, stage: StageId | "router"): string | undefined {
-  return cfg.claude.models?.[stage] ?? cfg.claude.model;
+/** Model for a given agent (per-agent override, falling back to claude.model). */
+export function pickModel(cfg: AiToolsConfig, key: AgentKey): string | undefined {
+  return cfg.claude.models?.[key] ?? cfg.claude.model;
 }

@@ -20,21 +20,25 @@
   "todoMarkers": ["TODO", "FIXME"],
   "maxAttemptsPerStage": 3,
   "maxTotalIterations": 25,
+  "_maxMasterInterventionsNote": "When a stage exhausts maxAttemptsPerStage, the master-agent (full permissions, opus) is invoked to unblock it — at most this many times per stuck stage before the run truly fails.",
+  "maxMasterInterventions": 1,
   "commandTimeoutMs": 900000,
   "claude": {
-    "_modelsNote": "Opus writes the initial analysis and the final solution review; Sonnet handles interfaces, tests, implementation and routing.",
+    "_modelsNote": "Opus writes the initial analysis, the final solution review, and the master-agent rescue. Haiku writes the interface skeleton and the tests (red phase); review-tdd stays on Sonnet 5 (tests are reviewed normally). Implementation runs on the slightly weaker Sonnet 4.6.",
     "model": "claude-sonnet-5",
     "models": {
       "analysis": "claude-opus-4-8",
-      "interface": "claude-sonnet-5",
-      "tdd": "claude-sonnet-5",
+      "interface": "claude-haiku-4-5",
+      "tdd": "claude-haiku-4-5",
       "review-tdd": "claude-sonnet-5",
-      "implementation": "claude-sonnet-5",
+      "implementation": "claude-sonnet-4-6",
       "review-solution": "claude-opus-4-8",
-      "router": "claude-sonnet-5"
+      "router": "claude-sonnet-5",
+      "master-agent": "claude-opus-4-8"
     },
-    "maxTurns": 40,
+    "maxTurns": 60,
     "permissionMode": "acceptEdits",
+    "_masterAgentToolsNote": "The master-agent runs with bypassPermissions and a full tool set (incl. Bash) so it can read, edit, and run the validation commands itself to unblock a stuck stage.",
     "allowedTools": {
       "analysis": ["Read", "Glob", "Grep"],
       "interface": ["Read", "Write", "Edit", "Glob", "Grep"],
@@ -42,7 +46,8 @@
       "review-tdd": ["Read", "Glob", "Grep"],
       "implementation": ["Read", "Write", "Edit", "Glob", "Grep"],
       "review-solution": ["Read", "Glob", "Grep"],
-      "router": ["Read", "Glob", "Grep"]
+      "router": ["Read", "Glob", "Grep"],
+      "master-agent": ["Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep"]
     }
   }
 }

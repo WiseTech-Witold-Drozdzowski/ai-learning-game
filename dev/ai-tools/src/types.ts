@@ -101,6 +101,8 @@ export interface RunState {
   status: RunStatus;
   /** Attempts per stage. */
   attempts: Partial<Record<StageId, number>>;
+  /** How many times the master-agent has been invoked to unblock each stage. */
+  masterInterventions?: Partial<Record<StageId, number>>;
   totalIterations: number;
   history: HistoryEntry[];
   /** Extra context accumulated from reviews and the human. */

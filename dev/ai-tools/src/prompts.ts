@@ -149,8 +149,18 @@ export function buildAnalysisPrompt(cfg: AiToolsConfig, state: RunState, attempt
     "You are the ONLY stage that reads the full design docs. Read the task and the docs above, explore the",
     "existing code enough to ground the plan, then produce a compact, task-scoped plan that the later stages",
     "(interfaces, tests, implementation, reviews) will follow WITHOUT re-reading the design docs.",
+    "Your `interfaces`, `tests`, and `implementationNotes` are each written verbatim to a dedicated spec file",
+    "(interfaces → 1-interface.md, tests → 2-tdd.md, implementationNotes → 4-implementation.md) that becomes",
+    "the SOLE source of truth for that stage. Make each one complete and self-contained: the stage reading it",
+    "will not see the others' detail. Do not create or write these files yourself — the tool writes them from your JSON.",
     "- List every interface/class to create with full method signatures + one-line contracts.",
-    "- List every test file and the cases it must cover (happy path, edge cases, error paths).",
+    "- List every test file and the cases it must cover (happy path, edge cases, error paths); each case must say WHAT the test verifies.",
+    "- Every observable behavioral rule you put in `implementationNotes` MUST also appear as",
+    "  a `tests` case. Enumerate boundary and negation cases explicitly, not just the happy",
+    "  and rejection paths: empty collections (e.g. an empty list still succeeds with a",
+    "  zero/empty result), optional fields ABSENT (the 'not required' default path, not only",
+    "  the 'required and missing' rejection path), and inputs that must be IGNORED on a given",
+    "  branch. review-tdd fails the tests when these are missing — surface them here.",
     "- Keep `relevantDesign` to the few points that actually constrain this issue — do not summarise the whole doc.",
     "- In `stepNotes`, write focused, actionable notes for each later step: name the exact files it should touch",
     "  so it can work fast, and explicitly warn it NOT to delete or rewrite existing code (only add what's new).",
@@ -160,10 +170,10 @@ export function buildAnalysisPrompt(cfg: AiToolsConfig, state: RunState, attempt
   ].join("\n");
 }
 
-/** Append the analysis stage's focused, per-step notes (from the run's step file) to a work prompt. */
+/** Append the analysis stage's dedicated spec file for this step (the step's source of truth) to a work prompt. */
 function stepNotesBlock(state: RunState, step: NotedStep): string {
   const note = loadStepTask(state, step);
-  return note ? `## Focused notes for this step (from the analysis stage)\n${note}` : "";
+  return note ? `## Your spec for this step (written by the analysis stage — this is your source of truth)\n${note}` : "";
 }
 
 export function buildInterfacePrompt(cfg: AiToolsConfig, state: RunState, attempt: number): string {
@@ -173,7 +183,7 @@ export function buildInterfacePrompt(cfg: AiToolsConfig, state: RunState, attemp
     stepNotesBlock(state, "interface"),
     "",
     "## Your stage: 1. INTERFACES (skeleton)",
-    "Create EXACTLY the interfaces / classes listed under `Interfaces to create` in the PLAN — nothing more. Work fast and focused.",
+    "Create EXACTLY the interfaces / classes in your spec above (the interface spec file written by the analysis stage) — nothing more. Work fast and focused.",
     "- Touch ONLY the files named in the plan / focused notes. Do not wander the codebase.",
     "- Do NOT delete or rewrite existing code — ADD new files/members only.",
     "- Every method must have the full signature from the plan",
@@ -192,7 +202,7 @@ export function buildTddPrompt(cfg: AiToolsConfig, state: RunState, attempt: num
     stepNotesBlock(state, "tdd"),
     "",
     "## Your stage: 2. TDD — tests (red phase)",
-    "Write EXACTLY the tests listed under `Tests to write` in the PLAN. The interfaces already exist in the repo.",
+    "Write EXACTLY the tests in your spec above (the test spec file written by the analysis stage). The interfaces already exist in the repo.",
     "- Add ONLY the test files/cases from the plan. Do NOT delete or modify existing code (production or tests).",
     "- Cover the cases named in the plan (happy path, edge cases, error paths).",
     "- Tests must compile, but they MUST fail (the implementation is still NotImplemented) — this is the red phase.",
@@ -209,7 +219,7 @@ export function buildImplementationPrompt(cfg: AiToolsConfig, state: RunState, a
     stepNotesBlock(state, "implementation"),
     "",
     "## Your stage: 4. IMPLEMENTATION (green phase)",
-    "Implement the logic so that ALL tests from stage 2 pass, following the plan's implementation notes.",
+    "Implement the logic so that ALL tests from stage 2 pass, following your spec above (the implementation spec file written by the analysis stage).",
     "- Fill in the methods named in the plan; keep changes minimal and do not rewrite unrelated code.",
     "- Do not weaken the tests to make them pass. If a test is clearly wrong, state that in your summary.",
     "- Remove `NotImplementedException` from the paths covered by the task and add the real logic.",
@@ -243,9 +253,68 @@ export function buildReviewSolutionPrompt(cfg: AiToolsConfig, state: RunState, a
     "",
     "## Your stage: 5. FULL SOLUTION REVIEW (read-only)",
     "Assess the whole solution: implementation correctness, conformance to the tests and the PLAN, code quality, and gaps in error handling.",
-    'Do not edit files. If something is wrong → verdict=fail and set goBackTo ("implementation" for an implementation bug, "tdd" for a missing/bad test, "interface" for a wrong contract).',
+    "Be STRICT and NITPICKY — this is the last gate before a human sees the code. Beyond correctness, actively",
+    "call out general code and writing style: naming, consistency with the surrounding codebase's conventions,",
+    "readability, dead or duplicated code, awkward abstractions, missing or misleading comments/docstrings,",
+    "and sloppy formatting. Do not wave through 'works but ugly' code — hold a high bar and list every issue you",
+    "find, even minor ones, in `reasons`. When in doubt, lean toward fail rather than passing borderline work.",
+    'Do not edit files. If something is wrong → verdict=fail and set goBackTo ("implementation" for an implementation or style bug, "tdd" for a missing/bad test, "interface" for a wrong contract).',
     "",
     VERDICT_FORMAT,
+  ].join("\n");
+}
+
+/** What "unblocked" means for each stage the master-agent may be called to rescue. */
+const MASTER_STAGE_GOAL: Partial<Record<StageId, string>> = {
+  analysis: "produce a valid, complete plan (non-empty interfaces and tests).",
+  interface: "the main source compiles (the interface skeleton exists with the right signatures).",
+  tdd: "the tests compile AND at least one fails (a proper red phase against the not-yet-implemented code).",
+  "review-tdd": "the tests are complete and correct enough to pass a strict test review (fix or extend them).",
+  implementation: "the full test suite passes when run via Docker.",
+  "review-solution": "the solution is correct, clean, and conformant enough to pass a strict full review.",
+};
+
+/**
+ * Prompt for the master-agent — invoked with FULL permissions after a stage has burned
+ * all its normal attempts. Its job is to unblock the stuck stage by any means, then hand
+ * back to the normal pipeline (which re-runs the stage with a fresh budget).
+ */
+export function buildMasterAgentPrompt(cfg: AiToolsConfig, state: RunState, stuckStage: StageId): string {
+  const recent = state.history
+    .filter((h) => h.stage === stuckStage)
+    .slice(-6)
+    .map((h) => `- [${h.phase}${h.attempt ? ` #${h.attempt}` : ""}] ${h.ok ? "ok" : "FAIL"} — ${h.summary}`);
+
+  const lastFail = state.lastFailure && state.lastFailure.stage === stuckStage ? state.lastFailure : undefined;
+
+  return [
+    taskBlock(state),
+    "",
+    planBlock(state),
+    "",
+    contextBlock(state),
+    "",
+    "## Your stage: MASTER-AGENT RESCUE (full permissions)",
+    `The "${stuckStage}" stage exhausted all its normal retry attempts and the workflow is stuck. You have FULL`,
+    "permissions (read, write, edit, and Bash) — unlike the normal stages, you MAY run commands yourself.",
+    `Goal: unblock this stage. "Unblocked" means: ${MASTER_STAGE_GOAL[stuckStage] ?? "the stage's validation passes."}`,
+    "",
+    "Do whatever it takes within the scope of this task:",
+    "- Diagnose WHY the stage kept failing (read the failure history below and the relevant code/tests).",
+    "- Fix the root cause directly — edit production code, tests, or the skeleton as needed. Keep changes minimal and on-task; do not rewrite unrelated code.",
+    "- You MAY run the validation command(s) yourself via Bash to confirm you actually unblocked it (do NOT run `./gradlew` on the host — only via Docker as the commands below do):",
+    `    - compile main:  ${cfg.commands.compileMain}`,
+    `    - compile tests: ${cfg.commands.compileTests}`,
+    `    - full tests:    ${cfg.commands.test}`,
+    "- After you fix it, the normal pipeline re-runs this stage with a fresh attempt budget, so leave the repo in a state where the normal stage agent can succeed.",
+    "",
+    "## Why the stage was stuck",
+    lastFail ? `Last failure: ${lastFail.summary}` : "(no specific last-failure recorded)",
+    ...(lastFail?.details?.trim() ? ["Validator output:", "```", truncate(lastFail.details.trim()), "```"] : []),
+    recent.length ? "History for this stage:" : "",
+    ...recent,
+    "",
+    "At the end, summarize what was blocking the stage and exactly what you changed to unblock it.",
   ].join("\n");
 }
 
