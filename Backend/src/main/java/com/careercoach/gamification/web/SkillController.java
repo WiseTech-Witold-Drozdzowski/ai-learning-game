@@ -16,7 +16,7 @@ public class SkillController {
 
     private final ProfileQueryService profileQueryService;
 
-    @GetMapping("/api/skills")
+    @GetMapping("/skills")
     public List<SkillView> skills() {
         return profileQueryService.listSkills();
     }

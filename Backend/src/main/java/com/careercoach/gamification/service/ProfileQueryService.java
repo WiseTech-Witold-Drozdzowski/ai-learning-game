@@ -11,6 +11,7 @@ import com.careercoach.config.domain.SkillDefinition;
 import com.careercoach.config.repository.SkillDefinitionRepository;
 import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.domain.Skill;
+import com.careercoach.gamification.mapper.SkillMapper;
 import com.careercoach.gamification.repository.SkillRepository;
 import com.careercoach.gamification.web.model.ProfileResponse;
 import com.careercoach.gamification.web.model.SkillView;
@@ -25,6 +26,7 @@ public class ProfileQueryService {
     private final CareerProfileService careerProfileService;
     private final SkillRepository skillRepository;
     private final SkillDefinitionRepository skillDefinitionRepository;
+    private final SkillMapper skillMapper;
 
     public ProfileResponse getProfile(Long userId) {
         CareerProfile profile = careerProfileService.getForUser(userId);
@@ -41,6 +43,6 @@ public class ProfileQueryService {
 
     private SkillView toSkillView(Skill skill, Map<String, String> displayNames) {
         String displayName = displayNames.getOrDefault(skill.getKey(), skill.getKey());
-        return new SkillView(skill.getKey(), displayName, skill.getLevel(), skill.getExp());
+        return skillMapper.toSkillView(skill, displayName);
     }
 }

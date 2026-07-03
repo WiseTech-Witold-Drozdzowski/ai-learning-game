@@ -15,7 +15,7 @@ import com.careercoach.tasks.web.model.SubmitRequest;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/tasks")
+@RequestMapping("/tasks")
 @RequiredArgsConstructor
 public class TaskController {
 

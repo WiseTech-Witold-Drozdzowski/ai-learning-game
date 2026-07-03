@@ -11,12 +11,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.mapstruct.factory.Mappers;
+
 import com.careercoach.config.domain.SkillDefinition;
 import com.careercoach.config.repository.SkillDefinitionRepository;
 import com.careercoach.gamification.domain.AvatarState;
 import com.careercoach.gamification.domain.AvatarTier;
 import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.domain.Skill;
+import com.careercoach.gamification.mapper.SkillMapper;
 import com.careercoach.gamification.repository.SkillRepository;
 import com.careercoach.gamification.web.model.ProfileResponse;
 import com.careercoach.gamification.web.model.SkillView;
@@ -41,7 +44,8 @@ class ProfileQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ProfileQueryService(careerProfileService, skillRepository, skillDefinitionRepository);
+        SkillMapper skillMapper = Mappers.getMapper(SkillMapper.class);
+        service = new ProfileQueryService(careerProfileService, skillRepository, skillDefinitionRepository, skillMapper);
     }
 
     @Test

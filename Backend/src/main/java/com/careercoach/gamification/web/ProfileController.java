@@ -16,7 +16,7 @@ public class ProfileController {
     private final ProfileQueryService profileQueryService;
     private final CurrentUserService currentUserService;
 
-    @GetMapping("/api/profile")
+    @GetMapping("/profile")
     public ProfileResponse profile() {
         Long userId = currentUserService.getCurrentUser().getId();
         return profileQueryService.getProfile(userId);
