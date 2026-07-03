@@ -16,7 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/task-types")
+@RequestMapping("/task-types")
 @RequiredArgsConstructor
 public class TaskTypeController {
 

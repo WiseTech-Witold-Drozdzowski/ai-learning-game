@@ -16,7 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/skill-defs")
+@RequestMapping("/skill-defs")
 @RequiredArgsConstructor
 public class SkillDefController {
 

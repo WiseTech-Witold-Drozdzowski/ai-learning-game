@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
  * Temporary — to be removed once real controllers exist (BACKEND_DESIGN §7).
  */
 @RestController
-@RequestMapping("/api")
 public class PingController {
 
     @GetMapping("/ping")

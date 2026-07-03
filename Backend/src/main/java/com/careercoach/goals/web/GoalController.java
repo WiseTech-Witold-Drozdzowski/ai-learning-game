@@ -21,7 +21,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/goals")
+@RequestMapping("/goals")
 @RequiredArgsConstructor
 public class GoalController {
 

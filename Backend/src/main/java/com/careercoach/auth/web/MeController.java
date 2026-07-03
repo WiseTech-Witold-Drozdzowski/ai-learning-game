@@ -1,7 +1,6 @@
 package com.careercoach.auth.web;
 
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.careercoach.auth.domain.User;
@@ -10,7 +9,6 @@ import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.service.CareerProfileService;
 
 @RestController
-@RequestMapping("/api")
 public class MeController {
 
     private final CurrentUserService currentUserService;
