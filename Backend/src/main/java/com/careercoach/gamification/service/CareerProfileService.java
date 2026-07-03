@@ -35,4 +35,12 @@ public class CareerProfileService {
         profile.setLevel(LevelCurve.levelForExp(profile.getTotalExp()));
         return careerProfileRepository.save(profile);
     }
+
+    public CareerProfile setTotalExp(Long userId, long totalExp) {
+        CareerProfile profile = careerProfileRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("No career profile provisioned for user " + userId));
+        profile.setTotalExp(totalExp);
+        profile.setLevel(LevelCurve.levelForExp(totalExp));
+        return careerProfileRepository.save(profile);
+    }
 }

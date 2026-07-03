@@ -113,4 +113,11 @@ public class GoalService {
                 .children(children)
                 .build();
     }
+
+    public void resetAllExpEarned() {
+        for (Goal goal : goalRepository.findAll()) {
+            goal.setExpEarned(0L);
+            goalRepository.save(goal);
+        }
+    }
 }

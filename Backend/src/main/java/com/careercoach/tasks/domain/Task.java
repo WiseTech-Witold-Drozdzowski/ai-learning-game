@@ -52,9 +52,10 @@ public class Task {
     @Column(nullable = false, length = 32)
     private TaskState state;
 
+    @Builder.Default
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "skill_keys", columnDefinition = "text[]")
-    private List<String> skillKeys;
+    private List<String> skillKeys = new java.util.ArrayList<>();
 
     private String artifact;
 

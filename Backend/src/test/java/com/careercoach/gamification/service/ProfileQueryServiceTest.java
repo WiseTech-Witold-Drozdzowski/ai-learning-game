@@ -20,6 +20,7 @@ import com.careercoach.gamification.domain.AvatarTier;
 import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.domain.Skill;
 import com.careercoach.gamification.mapper.SkillMapper;
+import com.careercoach.gamification.repository.ExpEventRepository;
 import com.careercoach.gamification.repository.SkillRepository;
 import com.careercoach.gamification.web.model.ProfileResponse;
 import com.careercoach.gamification.web.model.SkillView;
@@ -40,12 +41,16 @@ class ProfileQueryServiceTest {
     @Mock
     private SkillDefinitionRepository skillDefinitionRepository;
 
+    @Mock
+    private ExpEventRepository expEventRepository;
+
     private ProfileQueryService service;
 
     @BeforeEach
     void setUp() {
         SkillMapper skillMapper = Mappers.getMapper(SkillMapper.class);
-        service = new ProfileQueryService(careerProfileService, skillRepository, skillDefinitionRepository, skillMapper);
+        service = new ProfileQueryService(
+                careerProfileService, skillRepository, skillDefinitionRepository, skillMapper, expEventRepository);
     }
 
     @Test

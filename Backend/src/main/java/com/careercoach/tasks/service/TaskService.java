@@ -88,4 +88,9 @@ public class TaskService {
     private Task findOrThrow(Long id) {
         return taskRepository.findById(id).orElseThrow(() -> new TaskNotFoundException(id));
     }
+
+    @Transactional(readOnly = true)
+    public Long getGoalId(Long taskId) {
+        return findOrThrow(taskId).getGoalId();
+    }
 }

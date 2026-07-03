@@ -9,4 +9,6 @@ import com.careercoach.gamification.domain.ExpEvent;
 public interface ExpEventRepository extends JpaRepository<ExpEvent, Long> {
 
     List<ExpEvent> findBySourceTaskId(Long sourceTaskId);
+
+    List<ExpEvent> findBySkillKeyOrderByCreatedAtAsc(String skillKey);
 }
