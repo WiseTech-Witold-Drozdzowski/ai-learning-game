@@ -8,10 +8,21 @@ package com.careercoach.ai;
  * thing (synchronous chat vs. autonomous tool-using agent). The only shared
  * contract is {@link com.careercoach.jobs.JobHandler}.
  *
- * <p>Synchronous request → response. Mocked in tests with deterministic JSON.
+ * <p>Synchronous request → response, plus a streaming mode (SSE) that pushes the
+ * assistant reply fragment-by-fragment. Mocked in tests: the stub returns
+ * deterministic JSON for {@link #complete} and emits a fixed sequence of fragments
+ * for {@link #stream}.
  */
 public interface OpenRouterClient {
 
     /** Run a single chat completion for {@code prompt} and return the assistant content. */
     OpenRouterCompletion complete(String prompt);
+
+    /**
+     * Stream the assistant reply for {@code prompt}, invoking {@code listener} for each
+     * fragment as it arrives (no whole-response buffering) and then a single terminal
+     * {@link OpenRouterStreamListener#onComplete}/{@link OpenRouterStreamListener#onError}.
+     * This is the seam re-used to pass OpenRouter SSE through Spring to the client.
+     */
+    void stream(String prompt, OpenRouterStreamListener listener);
 }

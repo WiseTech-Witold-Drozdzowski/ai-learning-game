@@ -16,7 +16,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` pending.
 
 - [x] issue-1 — Kręgosłup Jobów: runner + globalny SSE (tracer bullet) — done
 - [x] issue-2 — Port OpenRouter + assembler kontekstu + PLANNING — done
-- [ ] issue-3 — Czat strategiczny z coachem (streaming SSE) — pending
+- [x] issue-3 — Czat strategiczny z coachem (streaming SSE) — done
 - [ ] issue-4 — Routing weryfikacji + generyczny EVALUATION + award + SSE exp-gain/level-up — pending
 - [ ] issue-5 — QUIZ generowany i auto-oceniany (AUTO_QUIZ) — pending
 - [ ] issue-6 — Mock interview (sesja + transkrypt inkrementalny + ocena) — pending
