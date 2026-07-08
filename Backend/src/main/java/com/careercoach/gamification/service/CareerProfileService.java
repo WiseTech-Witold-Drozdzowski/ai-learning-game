@@ -1,5 +1,7 @@
 package com.careercoach.gamification.service;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,12 @@ public class CareerProfileService {
         return careerProfileRepository.findById(userId)
                 .orElseGet(() -> careerProfileRepository.save(
                         new CareerProfile(userId, 0L, 1, AvatarState.initial())));
+    }
+
+    /** The single career profile (single-user app), if provisioned — for context assembly. */
+    @Transactional(readOnly = true)
+    public Optional<CareerProfile> getSingle() {
+        return careerProfileRepository.findAll().stream().findFirst();
     }
 
     @Transactional(readOnly = true)

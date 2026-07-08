@@ -15,7 +15,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` pending.
 ## prd-2 (ai-jobs)
 
 - [x] issue-1 — Kręgosłup Jobów: runner + globalny SSE (tracer bullet) — done
-- [ ] issue-2 — Port OpenRouter + assembler kontekstu + PLANNING — pending
+- [x] issue-2 — Port OpenRouter + assembler kontekstu + PLANNING — done
 - [ ] issue-3 — Czat strategiczny z coachem (streaming SSE) — pending
 - [ ] issue-4 — Routing weryfikacji + generyczny EVALUATION + award + SSE exp-gain/level-up — pending
 - [ ] issue-5 — QUIZ generowany i auto-oceniany (AUTO_QUIZ) — pending

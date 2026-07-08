@@ -38,6 +38,27 @@ public class TaskService {
         return findOrThrow(id);
     }
 
+    /** Most recently updated completed tasks — context for the coach (BACKEND_DESIGN §6). */
+    @Transactional(readOnly = true)
+    public List<Task> recentCompleted() {
+        return taskRepository.findTop5ByStateOrderByUpdatedAtDesc(TaskState.DONE);
+    }
+
+    /** Create a task in {@code TODO} under {@code goalId} (used when task proposals are accepted). */
+    public Task createTodo(Long goalId, String title, String description, String typeKey,
+                           List<String> skillKeys) {
+        Task task = Task.builder()
+                .goalId(goalId)
+                .typeKey(typeKey)
+                .title(title)
+                .description(description)
+                .state(TaskState.TODO)
+                .skillKeys(skillKeys == null ? new ArrayList<>() : new ArrayList<>(skillKeys))
+                .expAwarded(0L)
+                .build();
+        return taskRepository.save(task);
+    }
+
     public Task start(Long id) {
         Task task = findOrThrow(id);
         if (task.getState() != TaskState.TODO) {
