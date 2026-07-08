@@ -28,10 +28,10 @@
     "model": "claude-sonnet-5",
     "models": {
       "analysis": "claude-opus-4-8",
-      "interface": "claude-haiku-4-5",
-      "tdd": "claude-haiku-4-5",
+      "interface": "claude-sonnet-4-6",
+      "tdd": "claude-sonnet-5",
       "review-tdd": "claude-sonnet-5",
-      "implementation": "claude-sonnet-4-6",
+      "implementation": "claude-sonnet-5",
       "review-solution": "claude-opus-4-8",
       "router": "claude-sonnet-5",
       "master-agent": "claude-opus-4-8"

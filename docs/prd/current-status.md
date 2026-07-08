@@ -4,13 +4,13 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` pending.
 
 ## prd-1 (core domain)
 
-- [~] issue-1 — Fundament tożsamości + auth (prefactor) — in progress
-- [ ] issue-2 — Katalog konfiguracji mechaniki (TaskTypeDefinition + SkillDefinition) — pending
-- [ ] issue-3 — Drzewo celów (rekursywny Goal, stany, akceptacja) — pending
-- [ ] issue-4 — Zadania pod celem + cykl życia (bez exp) — pending
-- [ ] issue-5 — Silnik gamifikacji (ledger + liczniki + award) — pending
-- [ ] issue-6 — Submit HONOR + odczyt profilu i skilli — pending
-- [ ] issue-7 — Audyt i przeliczalność exp (historia + rebuild) — pending
+- [x] issue-1 — Fundament tożsamości + auth (prefactor) — done
+- [x] issue-2 — Katalog konfiguracji mechaniki (TaskTypeDefinition + SkillDefinition) — done
+- [x] issue-3 — Drzewo celów (rekursywny Goal, stany, akceptacja) — done
+- [x] issue-4 — Zadania pod celem + cykl życia (bez exp) — done
+- [x] issue-5 — Silnik gamifikacji (ledger + liczniki + award) — done
+- [x] issue-6 — Submit HONOR + odczyt profilu i skilli — done
+- [x] issue-7 — Audyt i przeliczalność exp (historia + rebuild) — done
 
 ## prd-2 (ai-jobs)
 
