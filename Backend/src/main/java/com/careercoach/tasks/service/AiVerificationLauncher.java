@@ -1,5 +1,7 @@
 package com.careercoach.tasks.service;
 
+import java.util.List;
+
 import com.careercoach.tasks.domain.Task;
 
 /**
@@ -12,7 +14,9 @@ public interface AiVerificationLauncher {
 
     /**
      * Enqueue an EVALUATION job for {@code task} and return the created job id
-     * (stored on the task as {@code verificationJobId}).
+     * (stored on the task as {@code verificationJobId}). {@code artifact} feeds the
+     * artifact-review path; {@code answers} feed the AUTO_QUIZ path — a method uses
+     * the one it needs (either may be {@code null}).
      */
-    Long launchEvaluation(Task task, String artifact);
+    Long launchEvaluation(Task task, String artifact, List<String> answers);
 }

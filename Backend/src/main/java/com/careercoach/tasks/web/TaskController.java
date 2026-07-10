@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 import com.careercoach.auth.service.CurrentUserService;
 import com.careercoach.tasks.domain.Task;
 import com.careercoach.tasks.service.TaskService;
@@ -31,7 +33,8 @@ public class TaskController {
     public Task submit(@PathVariable Long id, @RequestBody(required = false) SubmitRequest req) {
         Long userId = currentUserService.getCurrentUser().getId();
         String artifact = req == null ? null : req.artifact();
-        return taskService.submit(id, userId, artifact);
+        List<String> answers = req == null ? null : req.answers();
+        return taskService.submit(id, userId, artifact, answers);
     }
 
     @GetMapping("/{id}")

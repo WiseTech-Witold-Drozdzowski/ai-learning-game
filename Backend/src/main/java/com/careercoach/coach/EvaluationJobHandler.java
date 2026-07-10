@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 
 import com.careercoach.ai.OpenRouterClient;
 import com.careercoach.ai.OpenRouterCompletion;
+import com.careercoach.config.domain.TaskTypeDefinition;
+import com.careercoach.config.domain.VerificationMethod;
+import com.careercoach.config.service.TaskTypeDefinitionService;
 import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.service.AwardCommand;
 import com.careercoach.gamification.service.AwardResult;
@@ -41,6 +44,8 @@ public class EvaluationJobHandler implements JobHandler<EvaluationInput> {
     private final GamificationService gamificationService;
     private final CareerProfileService careerProfileService;
     private final TaskService taskService;
+    private final TaskTypeDefinitionService taskTypeDefinitionService;
+    private final QuizGrader quizGrader;
 
     @Override
     public JobType type() {
@@ -55,22 +60,31 @@ public class EvaluationJobHandler implements JobHandler<EvaluationInput> {
     @Override
     public JobResult handle(Job job, EvaluationInput input) {
         Task task = taskService.get(input.taskId());
+        TaskTypeDefinition typeDefinition = taskTypeDefinitionService.get(input.typeKey());
+
+        // Specialize by verification method: AUTO_QUIZ grades deterministically against the
+        // stored answer key (no AI call); AI_ARTIFACT_REVIEW asks OpenRouter to grade.
+        EvaluationOutput output = typeDefinition.getVerificationMethod() == VerificationMethod.AUTO_QUIZ
+                ? quizGrader.grade(task.getQuiz(), input.answers(), typeDefinition, task.getSkillKeys())
+                : gradeArtifact(task, input);
+
+        // The AI only proposes; award clamps + de-duplicates (idempotency key = jobId),
+        // then the backend sets the terminal task state from the verdict.
+        AwardResult award = award(job, task, input, output.skillBreakdown());
+        taskService.recordEvaluation(task.getId(), output.passed(), award.totalGranted());
+
+        log.info("EVALUATION job {} graded task {}: score={} passed={} expGranted={}",
+                job.getId(), task.getId(), output.score(), output.passed(), award.totalGranted());
+        return new JobResult(output);
+    }
+
+    private EvaluationOutput gradeArtifact(Task task, EvaluationInput input) {
         OpenRouterCompletion completion = openRouterClient.complete(buildPrompt(task, input));
         EvaluationLlmResponse parsed = objectMapper.readValue(completion.content(), EvaluationLlmResponse.class);
 
         List<SkillBreakdown> breakdown = toBreakdown(parsed);
         long expProposed = breakdown.stream().mapToLong(SkillBreakdown::exp).sum();
-        EvaluationOutput output = new EvaluationOutput(
-                parsed.score(), expProposed, breakdown, parsed.feedback(), parsed.passed());
-
-        // The AI only proposes; award clamps + de-duplicates (idempotency key = jobId),
-        // then the backend sets the terminal task state from the verdict.
-        AwardResult award = award(job, task, input, breakdown);
-        taskService.recordEvaluation(task.getId(), parsed.passed(), award.totalGranted());
-
-        log.info("EVALUATION job {} graded task {}: score={} passed={} expGranted={}",
-                job.getId(), task.getId(), parsed.score(), parsed.passed(), award.totalGranted());
-        return new JobResult(output);
+        return new EvaluationOutput(parsed.score(), expProposed, breakdown, parsed.feedback(), parsed.passed());
     }
 
     private AwardResult award(Job job, Task task, EvaluationInput input, List<SkillBreakdown> breakdown) {

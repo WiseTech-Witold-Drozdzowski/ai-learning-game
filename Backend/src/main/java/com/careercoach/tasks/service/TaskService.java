@@ -14,6 +14,7 @@ import com.careercoach.gamification.service.AwardCommand;
 import com.careercoach.gamification.service.AwardResult;
 import com.careercoach.gamification.service.GamificationService;
 import com.careercoach.gamification.service.SkillAward;
+import com.careercoach.tasks.domain.Quiz;
 import com.careercoach.tasks.domain.Task;
 import com.careercoach.tasks.domain.TaskState;
 import com.careercoach.tasks.domain.exception.ArtifactRequiredException;
@@ -70,6 +71,10 @@ public class TaskService {
     }
 
     public Task submit(Long id, Long userId, String artifact) {
+        return submit(id, userId, artifact, null);
+    }
+
+    public Task submit(Long id, Long userId, String artifact, List<String> answers) {
         Task task = findOrThrow(id);
         if (task.getState() == TaskState.DONE) {
             return task;
@@ -81,7 +86,13 @@ public class TaskService {
         // AI verification is asynchronous: enqueue an EVALUATION job and wait IN_PROGRESS.
         // The grade, award and terminal state arrive when the job finishes (see EvaluationJobHandler).
         if (method == VerificationMethod.AI_ARTIFACT_REVIEW) {
-            return launchEvaluation(task, artifact);
+            return launchEvaluation(task, artifact, null);
+        }
+
+        // AUTO_QUIZ is graded deterministically against the stored answer key inside the
+        // EVALUATION job; the user's answers ride along as the material to grade.
+        if (method == VerificationMethod.AUTO_QUIZ) {
+            return launchEvaluation(task, null, answers);
         }
 
         if (method == VerificationMethod.HONOR_WITH_PROOF) {
@@ -98,13 +109,20 @@ public class TaskService {
         return awardAndComplete(task, userId, typeDefinition);
     }
 
-    private Task launchEvaluation(Task task, String artifact) {
+    private Task launchEvaluation(Task task, String artifact, List<String> answers) {
         if (StringUtils.hasText(artifact)) {
             task.setArtifact(artifact);
         }
-        Long jobId = aiVerificationLauncher.launchEvaluation(task, artifact);
+        Long jobId = aiVerificationLauncher.launchEvaluation(task, artifact, answers);
         task.setVerificationJobId(jobId);
         task.setState(TaskState.IN_PROGRESS);
+        return taskRepository.save(task);
+    }
+
+    /** Persist an AI-generated quiz + answer key onto an AUTO_QUIZ task (issue-5). */
+    public Task saveQuiz(Long taskId, Quiz quiz) {
+        Task task = findOrThrow(taskId);
+        task.setQuiz(quiz);
         return taskRepository.save(task);
     }
 

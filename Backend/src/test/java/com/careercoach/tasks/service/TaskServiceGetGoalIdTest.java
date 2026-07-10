@@ -41,8 +41,8 @@ class TaskServiceGetGoalIdTest {
 
     @BeforeEach
     void setUp() {
-        service = new TaskService(
-                taskRepository, taskTypeDefinitionService, gamificationService, aiVerificationLauncher);
+        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService,
+                aiVerificationLauncher);
     }
 
     @Test

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -16,6 +17,9 @@ import org.mockito.ArgumentCaptor;
 
 import com.careercoach.ai.OpenRouterClient;
 import com.careercoach.ai.OpenRouterCompletion;
+import com.careercoach.config.domain.TaskTypeDefinition;
+import com.careercoach.config.domain.VerificationMethod;
+import com.careercoach.config.service.TaskTypeDefinitionService;
 import com.careercoach.gamification.domain.AvatarState;
 import com.careercoach.gamification.domain.CareerProfile;
 import com.careercoach.gamification.service.AwardCommand;
@@ -26,6 +30,7 @@ import com.careercoach.jobs.Job;
 import com.careercoach.jobs.JobResult;
 import com.careercoach.jobs.JobStatus;
 import com.careercoach.jobs.JobType;
+import com.careercoach.tasks.domain.Quiz;
 import com.careercoach.tasks.domain.Task;
 import com.careercoach.tasks.domain.TaskState;
 import com.careercoach.tasks.service.TaskService;
@@ -46,9 +51,12 @@ class EvaluationJobHandlerTest {
     private final GamificationService gamificationService = mock(GamificationService.class);
     private final CareerProfileService careerProfileService = mock(CareerProfileService.class);
     private final TaskService taskService = mock(TaskService.class);
+    private final TaskTypeDefinitionService taskTypeDefinitionService = mock(TaskTypeDefinitionService.class);
+    private final QuizGrader quizGrader = mock(QuizGrader.class);
     private final EvaluationJobHandler handler = new EvaluationJobHandler(
             assembler, openRouterClient, JsonMapper.builder().build(),
-            gamificationService, careerProfileService, taskService);
+            gamificationService, careerProfileService, taskService,
+            taskTypeDefinitionService, quizGrader);
 
     private static Task task() {
         return Task.builder()
@@ -65,6 +73,10 @@ class EvaluationJobHandlerTest {
 
     private void arrangeCommon(String llmJson) {
         when(taskService.get(10L)).thenReturn(task());
+        when(taskTypeDefinitionService.get("AI_REVIEW")).thenReturn(TaskTypeDefinition.builder()
+                .key("AI_REVIEW").displayName("AI review")
+                .verificationMethod(VerificationMethod.AI_ARTIFACT_REVIEW)
+                .expBase(50).expScaleByScore(false).requiresArtifact(false).build());
         when(assembler.assemble(5L)).thenReturn("CONTEXT");
         when(openRouterClient.complete(anyString())).thenReturn(new OpenRouterCompletion(llmJson));
         when(careerProfileService.getSingle())
@@ -118,6 +130,49 @@ class EvaluationJobHandlerTest {
         });
 
         // Assert — the backend, not the AI, sets the terminal state, using the clamped grant
+        verify(taskService).recordEvaluation(10L, true, 40L);
+    }
+
+    @Test
+    void handle_shouldGradeViaQuizGraderNotLlm_whenAutoQuiz() {
+        // Arrange — an AUTO_QUIZ task with a stored quiz + answer key
+        Task quizTask = Task.builder()
+                .id(10L).goalId(5L).typeKey("QUIZ").title("Java quiz")
+                .state(TaskState.IN_PROGRESS).skillKeys(List.of("JAVA")).expAwarded(0L)
+                .quiz(new Quiz(List.of(new Quiz.Question("q", List.of("A", "B"), "A"))))
+                .build();
+        when(taskService.get(10L)).thenReturn(quizTask);
+        when(taskTypeDefinitionService.get("QUIZ")).thenReturn(TaskTypeDefinition.builder()
+                .key("QUIZ").displayName("Quiz").verificationMethod(VerificationMethod.AUTO_QUIZ)
+                .expBase(40).expScaleByScore(true).requiresArtifact(false).build());
+        EvaluationOutput graded = new EvaluationOutput(
+                100, 40L, List.of(new SkillBreakdown("JAVA", 40L)), "Answered 1 of 1 correctly (100%).", true);
+        when(quizGrader.grade(any(), any(), any(), any())).thenReturn(graded);
+        when(careerProfileService.getSingle())
+                .thenReturn(Optional.of(new CareerProfile(1L, 0L, 1, AvatarState.initial())));
+        when(gamificationService.award(any(AwardCommand.class)))
+                .thenReturn(AwardResult.builder().applied(true).totalGranted(40L).build());
+        when(taskService.recordEvaluation(eq(10L), eq(true), eq(40L)))
+                .thenReturn(Task.builder().id(10L).state(TaskState.DONE).expAwarded(40L).build());
+        EvaluationInput input = new EvaluationInput(10L, "QUIZ", null, List.of("A"));
+
+        // Act
+        JobResult result = handler.handle(runningJob(), input);
+
+        // Assert — graded deterministically by the QuizGrader, the LLM is never consulted
+        EvaluationOutput output = (EvaluationOutput) result.output();
+        assertThat(output.score()).isEqualTo(100);
+        assertThat(output.passed()).isTrue();
+        verify(quizGrader).grade(any(), any(), any(), any());
+        verifyNoInteractions(openRouterClient);
+
+        // Assert — the quiz-proposed exp flows through award and the backend sets the terminal state
+        ArgumentCaptor<AwardCommand> cmdCaptor = ArgumentCaptor.forClass(AwardCommand.class);
+        verify(gamificationService).award(cmdCaptor.capture());
+        assertThat(cmdCaptor.getValue().skillAwards()).singleElement().satisfies(a -> {
+            assertThat(a.skillKey()).isEqualTo("JAVA");
+            assertThat(a.expProposed()).isEqualTo(40);
+        });
         verify(taskService).recordEvaluation(10L, true, 40L);
     }
 

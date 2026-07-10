@@ -6,6 +6,8 @@ import java.util.List;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -58,6 +60,16 @@ public class Task {
     private List<String> skillKeys = new java.util.ArrayList<>();
 
     private String artifact;
+
+    /**
+     * AI-generated quiz + answer key for AUTO_QUIZ tasks (issue-5). {@code @JsonIgnore}d
+     * so the answer key never leaks through {@code GET /tasks/{id}} — the client sees
+     * questions via the {@code QuizView} projection returned by quiz generation.
+     */
+    @JsonIgnore
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "quiz", columnDefinition = "jsonb")
+    private Quiz quiz;
 
     @Column(name = "exp_awarded", nullable = false)
     private long expAwarded;

@@ -57,8 +57,8 @@ class TaskServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TaskService(
-                taskRepository, taskTypeDefinitionService, gamificationService, aiVerificationLauncher);
+        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService,
+                aiVerificationLauncher);
     }
 
     private static Task task(TaskState state, String typeKey, List<String> skillKeys) {
@@ -265,7 +265,7 @@ class TaskServiceTest {
     // --- submit: unsupported (AI_ARTIFACT_REVIEW is now routed, not rejected — see below) ---
 
     @ParameterizedTest
-    @EnumSource(value = VerificationMethod.class, names = {"AUTO_QUIZ", "AI_DIALOG"})
+    @EnumSource(value = VerificationMethod.class, names = {"AI_DIALOG"})
     void submit_shouldThrowUnsupportedVerificationMethod_whenNotHonorBased(VerificationMethod method) {
         // Arrange
         Task existing = task(TaskState.IN_PROGRESS, "OTHER_TYPE", List.of("JAVA"));
@@ -288,14 +288,14 @@ class TaskServiceTest {
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(taskTypeDefinitionService.get("AI_REVIEW"))
                 .thenReturn(typeDefinition(VerificationMethod.AI_ARTIFACT_REVIEW, 50, false));
-        when(aiVerificationLauncher.launchEvaluation(existing, "my artifact")).thenReturn(777L);
+        when(aiVerificationLauncher.launchEvaluation(existing, "my artifact", null)).thenReturn(777L);
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
         Task result = service.submit(1L, 42L, "my artifact");
 
         // Assert — an EVALUATION job is created; the task waits IN_PROGRESS. No sync award.
-        verify(aiVerificationLauncher).launchEvaluation(existing, "my artifact");
+        verify(aiVerificationLauncher).launchEvaluation(existing, "my artifact", null);
         verifyNoInteractions(gamificationService);
         assertThat(result.getState()).isEqualTo(TaskState.IN_PROGRESS);
         assertThat(result.getVerificationJobId()).isEqualTo(777L);
