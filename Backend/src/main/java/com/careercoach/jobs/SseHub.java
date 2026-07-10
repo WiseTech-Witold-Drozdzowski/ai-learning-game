@@ -25,9 +25,23 @@ public class SseHub {
 
     /** Send a named {@code job-status} event to all subscribers; no-op when none. */
     public void emit(JobStatusEvent event) {
+        send(SseEventName.JOB_STATUS, event);
+    }
+
+    /** Send a named {@code exp-gain} event to all subscribers; no-op when none. */
+    public void emit(ExpGainEvent event) {
+        send(SseEventName.EXP_GAIN, event);
+    }
+
+    /** Send a named {@code level-up} event to all subscribers; no-op when none. */
+    public void emit(LevelUpEvent event) {
+        send(SseEventName.LEVEL_UP, event);
+    }
+
+    private void send(SseEventName name, Object data) {
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().name("job-status").data(event));
+                emitter.send(SseEmitter.event().name(name.wireName()).data(data));
             } catch (IOException | IllegalStateException ex) {
                 emitters.remove(emitter);
             }

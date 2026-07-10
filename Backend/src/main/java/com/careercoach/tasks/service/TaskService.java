@@ -32,6 +32,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final TaskTypeDefinitionService taskTypeDefinitionService;
     private final GamificationService gamificationService;
+    private final AiVerificationLauncher aiVerificationLauncher;
 
     @Transactional(readOnly = true)
     public Task get(Long id) {
@@ -77,6 +78,12 @@ public class TaskService {
         TaskTypeDefinition typeDefinition = taskTypeDefinitionService.get(task.getTypeKey());
         VerificationMethod method = typeDefinition.getVerificationMethod();
 
+        // AI verification is asynchronous: enqueue an EVALUATION job and wait IN_PROGRESS.
+        // The grade, award and terminal state arrive when the job finishes (see EvaluationJobHandler).
+        if (method == VerificationMethod.AI_ARTIFACT_REVIEW) {
+            return launchEvaluation(task, artifact);
+        }
+
         if (method == VerificationMethod.HONOR_WITH_PROOF) {
             if (typeDefinition.isRequiresArtifact() && !StringUtils.hasText(artifact)) {
                 throw new ArtifactRequiredException(id);
@@ -89,6 +96,24 @@ public class TaskService {
         }
 
         return awardAndComplete(task, userId, typeDefinition);
+    }
+
+    private Task launchEvaluation(Task task, String artifact) {
+        if (StringUtils.hasText(artifact)) {
+            task.setArtifact(artifact);
+        }
+        Long jobId = aiVerificationLauncher.launchEvaluation(task, artifact);
+        task.setVerificationJobId(jobId);
+        task.setState(TaskState.IN_PROGRESS);
+        return taskRepository.save(task);
+    }
+
+    /** Record an EVALUATION outcome: set granted exp + terminal state (backend-only, never AI/client). */
+    public Task recordEvaluation(Long taskId, boolean passed, long expAwarded) {
+        Task task = findOrThrow(taskId);
+        task.setExpAwarded(expAwarded);
+        task.setState(passed ? TaskState.DONE : TaskState.REJECTED);
+        return taskRepository.save(task);
     }
 
     private Task awardAndComplete(Task task, Long userId, TaskTypeDefinition typeDefinition) {

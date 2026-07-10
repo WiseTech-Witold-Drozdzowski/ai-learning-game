@@ -30,6 +30,7 @@ import com.careercoach.gamification.domain.Skill;
 import com.careercoach.gamification.repository.ExpEventRepository;
 import com.careercoach.gamification.repository.SkillRepository;
 import com.careercoach.goals.service.GoalService;
+import com.careercoach.jobs.SseHub;
 
 /**
  * Unit tests for {@link GamificationService} (issue-5) — all collaborators are mocked.
@@ -53,12 +54,15 @@ class GamificationServiceTest {
     @Mock
     private TaskTypeDefinitionService taskTypeDefinitionService;
 
+    @Mock
+    private SseHub sseHub;
+
     private GamificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new GamificationService(
-                skillRepository, expEventRepository, careerProfileService, goalService, taskTypeDefinitionService);
+        service = new GamificationService(skillRepository, expEventRepository, careerProfileService,
+                goalService, taskTypeDefinitionService, sseHub);
     }
 
     private TaskTypeDefinition honorCheckWithExpBase(int expBase) {

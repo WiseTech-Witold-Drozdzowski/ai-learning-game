@@ -15,6 +15,9 @@ import com.careercoach.gamification.domain.Skill;
 import com.careercoach.gamification.repository.ExpEventRepository;
 import com.careercoach.gamification.repository.SkillRepository;
 import com.careercoach.goals.service.GoalService;
+import com.careercoach.jobs.ExpGainEvent;
+import com.careercoach.jobs.LevelUpEvent;
+import com.careercoach.jobs.SseHub;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +30,7 @@ public class GamificationService {
     private final CareerProfileService careerProfileService;
     private final GoalService goalService;
     private final TaskTypeDefinitionService taskTypeDefinitionService;
+    private final SseHub sseHub;
 
 
     @Transactional
@@ -72,7 +76,7 @@ public class GamificationService {
         int oldProfileLevel = careerProfileService.getForUser(cmd.userId()).getLevel();
         CareerProfile profile = careerProfileService.addExp(cmd.userId(), totalGranted);
 
-        return AwardResult.builder()
+        AwardResult result = AwardResult.builder()
                 .applied(true)
                 .totalGranted(totalGranted)
                 .profileTotalExp(profile.getTotalExp())
@@ -80,6 +84,20 @@ public class GamificationService {
                 .profileLeveledUp(profile.getLevel() > oldProfileLevel)
                 .skills(skillProgresses)
                 .build();
+
+        emitProgress(cmd, result);
+        return result;
+    }
+
+    /** Push the accrual onto the global SSE stream (BACKEND_DESIGN §5 step 5). */
+    private void emitProgress(AwardCommand cmd, AwardResult result) {
+        if (result.totalGranted() > 0) {
+            sseHub.emit(new ExpGainEvent(
+                    cmd.sourceTaskId(), result.totalGranted(), result.profileTotalExp(), result.profileLevel()));
+        }
+        if (result.profileLeveledUp()) {
+            sseHub.emit(new LevelUpEvent(cmd.sourceTaskId(), result.profileLevel()));
+        }
     }
 
     private AwardResult buildDuplicateResult(AwardCommand cmd, List<ExpEvent> matching) {
