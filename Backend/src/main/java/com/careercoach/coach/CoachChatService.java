@@ -1,6 +1,8 @@
 package com.careercoach.coach;
 
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -10,27 +12,23 @@ import com.careercoach.ai.OpenRouterClient;
 import com.careercoach.coach.web.ChatTurn;
 import com.careercoach.coach.web.CoachMessageRequest;
 
+import lombok.RequiredArgsConstructor;
+
 /**
  * Strategic coach chat (issue-3): builds the chat prompt via the {@link ContextAssembler}
  * (so advice is grounded, not generic) plus the current conversation history, then streams
  * the OpenRouter reply through Spring to the client token-by-token via an {@link SseEmitter}.
  */
 @Service
+@RequiredArgsConstructor
 public class CoachChatService {
 
     static final long STREAM_TIMEOUT_MS = 5 * 60 * 1000L;
 
     private final ContextAssembler contextAssembler;
     private final OpenRouterClient openRouterClient;
+    @Qualifier("coachChatExecutor")
     private final Executor coachChatExecutor;
-
-    public CoachChatService(ContextAssembler contextAssembler,
-                            OpenRouterClient openRouterClient,
-                            @Qualifier("coachChatExecutor") Executor coachChatExecutor) {
-        this.contextAssembler = contextAssembler;
-        this.openRouterClient = openRouterClient;
-        this.coachChatExecutor = coachChatExecutor;
-    }
 
     /** Start streaming the coach reply for {@code request}; returns the live SSE emitter. */
     public SseEmitter streamReply(CoachMessageRequest request) {
@@ -50,16 +48,25 @@ public class CoachChatService {
 
     /** Build the chat prompt: assembled context + rendered history + the new user message. */
     String buildPrompt(CoachMessageRequest request) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(contextAssembler.assemble(request.goalId()));
-        sb.append("\n\n## Conversation\n");
-        if (request.history() != null) {
-            for (ChatTurn turn : request.history()) {
-                sb.append(turn.role()).append(": ").append(turn.content()).append('\n');
-            }
+        return """
+                %s
+
+                ## Conversation
+                %s
+                user: %s
+                coach:"""
+                .formatted(
+                        contextAssembler.assemble(request.goalId()),
+                        buildConversation(request.history()),
+                        request.message());
+    }
+
+    private String buildConversation(List<ChatTurn> history) {
+        if (history == null) {
+            return "";
         }
-        sb.append("user: ").append(request.message()).append('\n');
-        sb.append("coach:");
-        return sb.toString();
+        return history.stream()
+                .map(turn -> turn.role() + ": " + turn.content())
+                .collect(Collectors.joining("\n"));
     }
 }
