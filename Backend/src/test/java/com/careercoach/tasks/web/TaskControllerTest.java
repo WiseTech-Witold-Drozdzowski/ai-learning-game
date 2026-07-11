@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.careercoach.auth.domain.User;
 import com.careercoach.auth.service.CurrentUserService;
 import com.careercoach.config.domain.VerificationMethod;
+import com.careercoach.tasks.domain.Quiz;
 import com.careercoach.tasks.domain.Task;
 import com.careercoach.tasks.domain.TaskState;
 import com.careercoach.tasks.domain.exception.ArtifactRequiredException;
@@ -102,13 +103,13 @@ class TaskControllerTest {
     void submit_shouldReturnDone_whenNoBody() throws Exception {
         // Arrange
         stubCurrentUser(42L);
-        when(taskService.submit(eq(1L), eq(42L), isNull())).thenReturn(task(1L, TaskState.DONE));
+        when(taskService.submit(eq(1L), eq(42L), isNull(), isNull())).thenReturn(task(1L, TaskState.DONE));
 
         // Act / Assert
         mockMvc.perform(post("/api/tasks/1/submit"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("DONE"));
-        verify(taskService).submit(1L, 42L, null);
+        verify(taskService).submit(1L, 42L, null, null);
     }
 
     @Test
@@ -116,8 +117,8 @@ class TaskControllerTest {
     void submit_shouldPassArtifact_whenBodyProvided() throws Exception {
         // Arrange
         stubCurrentUser(42L);
-        when(taskService.submit(eq(1L), eq(42L), eq("http://proof"))).thenReturn(task(1L, TaskState.DONE));
-        String body = objectMapper.writeValueAsString(new SubmitRequest("http://proof"));
+        when(taskService.submit(eq(1L), eq(42L), eq("http://proof"), isNull())).thenReturn(task(1L, TaskState.DONE));
+        String body = objectMapper.writeValueAsString(new SubmitRequest("http://proof", null));
 
         // Act / Assert
         mockMvc.perform(post("/api/tasks/1/submit")
@@ -125,7 +126,7 @@ class TaskControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("DONE"));
-        verify(taskService).submit(1L, 42L, "http://proof");
+        verify(taskService).submit(1L, 42L, "http://proof", null);
     }
 
     @Test
@@ -133,7 +134,7 @@ class TaskControllerTest {
     void submit_shouldReturnBadRequest_whenArtifactRequired() throws Exception {
         // Arrange
         stubCurrentUser(42L);
-        when(taskService.submit(eq(1L), eq(42L), isNull()))
+        when(taskService.submit(eq(1L), eq(42L), isNull(), isNull()))
                 .thenThrow(new ArtifactRequiredException(1L));
 
         // Act / Assert
@@ -146,8 +147,8 @@ class TaskControllerTest {
     void submit_shouldReturnNotImplemented_whenVerificationMethodUnsupported() throws Exception {
         // Arrange
         stubCurrentUser(42L);
-        when(taskService.submit(eq(1L), eq(42L), isNull()))
-                .thenThrow(new UnsupportedVerificationMethodException(VerificationMethod.AUTO_QUIZ));
+        when(taskService.submit(eq(1L), eq(42L), isNull(), isNull()))
+                .thenThrow(new UnsupportedVerificationMethodException(VerificationMethod.AI_DIALOG));
 
         // Act / Assert
         mockMvc.perform(post("/api/tasks/1/submit"))
@@ -166,6 +167,21 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.state").value("TODO"))
                 .andExpect(jsonPath("$.typeKey").value("HONOR_CHECK"));
+    }
+
+    @Test
+    @WithMockUser
+    void get_shouldNotLeakQuizAnswerKey() throws Exception {
+        // Arrange — a task carrying a quiz with an answer key
+        Task withQuiz = task(1L, TaskState.IN_PROGRESS);
+        withQuiz.setQuiz(new Quiz(List.of(new Quiz.Question("Q1", List.of("A", "B"), "A"))));
+        when(taskService.get(1L)).thenReturn(withQuiz);
+
+        // Act / Assert — the whole quiz field is @JsonIgnore'd, so the answer key never ships
+        mockMvc.perform(get("/api/tasks/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.quiz").doesNotExist());
     }
 
     @Test

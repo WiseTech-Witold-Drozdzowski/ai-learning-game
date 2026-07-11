@@ -14,6 +14,7 @@ import com.careercoach.gamification.service.AwardCommand;
 import com.careercoach.gamification.service.AwardResult;
 import com.careercoach.gamification.service.GamificationService;
 import com.careercoach.gamification.service.SkillAward;
+import com.careercoach.tasks.domain.Quiz;
 import com.careercoach.tasks.domain.Task;
 import com.careercoach.tasks.domain.TaskState;
 import com.careercoach.tasks.domain.exception.ArtifactRequiredException;
@@ -32,10 +33,32 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final TaskTypeDefinitionService taskTypeDefinitionService;
     private final GamificationService gamificationService;
+    private final AiVerificationLauncher aiVerificationLauncher;
 
     @Transactional(readOnly = true)
     public Task get(Long id) {
         return findOrThrow(id);
+    }
+
+    /** Most recently updated completed tasks — context for the coach (BACKEND_DESIGN §6). */
+    @Transactional(readOnly = true)
+    public List<Task> recentCompleted() {
+        return taskRepository.findTop5ByStateOrderByUpdatedAtDesc(TaskState.DONE);
+    }
+
+    /** Create a task in {@code TODO} under {@code goalId} (used when task proposals are accepted). */
+    public Task createTodo(Long goalId, String title, String description, String typeKey,
+                           List<String> skillKeys) {
+        Task task = Task.builder()
+                .goalId(goalId)
+                .typeKey(typeKey)
+                .title(title)
+                .description(description)
+                .state(TaskState.TODO)
+                .skillKeys(skillKeys == null ? new ArrayList<>() : new ArrayList<>(skillKeys))
+                .expAwarded(0L)
+                .build();
+        return taskRepository.save(task);
     }
 
     public Task start(Long id) {
@@ -48,6 +71,10 @@ public class TaskService {
     }
 
     public Task submit(Long id, Long userId, String artifact) {
+        return submit(id, userId, artifact, null);
+    }
+
+    public Task submit(Long id, Long userId, String artifact, List<String> answers) {
         Task task = findOrThrow(id);
         if (task.getState() == TaskState.DONE) {
             return task;
@@ -55,6 +82,18 @@ public class TaskService {
 
         TaskTypeDefinition typeDefinition = taskTypeDefinitionService.get(task.getTypeKey());
         VerificationMethod method = typeDefinition.getVerificationMethod();
+
+        // AI verification is asynchronous: enqueue an EVALUATION job and wait IN_PROGRESS.
+        // The grade, award and terminal state arrive when the job finishes (see EvaluationJobHandler).
+        if (method == VerificationMethod.AI_ARTIFACT_REVIEW) {
+            return launchEvaluation(task, artifact, null);
+        }
+
+        // AUTO_QUIZ is graded deterministically against the stored answer key inside the
+        // EVALUATION job; the user's answers ride along as the material to grade.
+        if (method == VerificationMethod.AUTO_QUIZ) {
+            return launchEvaluation(task, null, answers);
+        }
 
         if (method == VerificationMethod.HONOR_WITH_PROOF) {
             if (typeDefinition.isRequiresArtifact() && !StringUtils.hasText(artifact)) {
@@ -68,6 +107,31 @@ public class TaskService {
         }
 
         return awardAndComplete(task, userId, typeDefinition);
+    }
+
+    private Task launchEvaluation(Task task, String artifact, List<String> answers) {
+        if (StringUtils.hasText(artifact)) {
+            task.setArtifact(artifact);
+        }
+        Long jobId = aiVerificationLauncher.launchEvaluation(task, artifact, answers);
+        task.setVerificationJobId(jobId);
+        task.setState(TaskState.IN_PROGRESS);
+        return taskRepository.save(task);
+    }
+
+    /** Persist an AI-generated quiz + answer key onto an AUTO_QUIZ task (issue-5). */
+    public Task saveQuiz(Long taskId, Quiz quiz) {
+        Task task = findOrThrow(taskId);
+        task.setQuiz(quiz);
+        return taskRepository.save(task);
+    }
+
+    /** Record an EVALUATION outcome: set granted exp + terminal state (backend-only, never AI/client). */
+    public Task recordEvaluation(Long taskId, boolean passed, long expAwarded) {
+        Task task = findOrThrow(taskId);
+        task.setExpAwarded(expAwarded);
+        task.setState(passed ? TaskState.DONE : TaskState.REJECTED);
+        return taskRepository.save(task);
     }
 
     private Task awardAndComplete(Task task, Long userId, TaskTypeDefinition typeDefinition) {

@@ -109,8 +109,8 @@ class TaskSubmitIntegrationTest {
                 new TaskTypeUpsertRequest("Honor check", VerificationMethod.HONOR, 10, false, false));
         taskTypeDefinitionService.upsert("HONOR_WITH_PROOF_CHECK",
                 new TaskTypeUpsertRequest("Honor with proof", VerificationMethod.HONOR_WITH_PROOF, 20, false, true));
-        taskTypeDefinitionService.upsert("QUIZ_CHECK",
-                new TaskTypeUpsertRequest("Auto quiz", VerificationMethod.AUTO_QUIZ, 15, false, false));
+        taskTypeDefinitionService.upsert("DIALOG_CHECK",
+                new TaskTypeUpsertRequest("AI dialog", VerificationMethod.AI_DIALOG, 15, false, false));
 
         user = userRepository.save(new User("submitter@example.com", "sub-submitter", "Submitter"));
         careerProfileRepository.save(new CareerProfile(user.getId(), 0L, 1, AvatarState.initial()));
@@ -238,7 +238,7 @@ class TaskSubmitIntegrationTest {
     @Test
     void submit_shouldRejectUnsupportedVerificationMethod_withoutAwardingOrCompletingTask() {
         // Arrange
-        Task task = saveTask("QUIZ_CHECK");
+        Task task = saveTask("DIALOG_CHECK");
         taskService.start(task.getId());
 
         // Act / Assert

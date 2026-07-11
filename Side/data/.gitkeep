@@ -1,0 +1,1 @@
+# Keeps the ./data directory in git. The actual SQLite file (tracker.db) is git-ignored.

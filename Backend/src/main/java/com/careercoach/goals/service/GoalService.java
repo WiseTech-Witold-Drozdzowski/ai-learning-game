@@ -61,6 +61,29 @@ public class GoalService {
         return roots;
     }
 
+    @Transactional(readOnly = true)
+    public Goal get(Long id) {
+        return goalRepository.findById(id)
+                .orElseThrow(() -> new GoalNotFoundException(id));
+    }
+
+    /** Create a coach-proposed sub-goal under {@code parentId}, in state {@code PROPOSED}. */
+    public Goal createProposedChild(Long parentId, String title, String description) {
+        Goal parent = goalRepository.findById(parentId)
+                .orElseThrow(() -> new GoalNotFoundException(parentId));
+        Goal child = Goal.builder()
+                .parentId(parent.getId())
+                .kind(GoalKind.LEVEL)
+                .title(title)
+                .description(description)
+                .state(GoalState.PROPOSED)
+                .createdBy(GoalCreatedBy.COACH)
+                .orderIndex((int) goalRepository.countByParentId(parentId))
+                .expEarned(0L)
+                .build();
+        return goalRepository.save(child);
+    }
+
     public Goal accept(Long id) {
         Goal goal = goalRepository.findById(id)
                 .orElseThrow(() -> new GoalNotFoundException(id));

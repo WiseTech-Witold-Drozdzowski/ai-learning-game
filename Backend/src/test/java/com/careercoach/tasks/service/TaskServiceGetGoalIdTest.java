@@ -34,11 +34,15 @@ class TaskServiceGetGoalIdTest {
     @Mock
     private GamificationService gamificationService;
 
+    @Mock
+    private AiVerificationLauncher aiVerificationLauncher;
+
     private TaskService service;
 
     @BeforeEach
     void setUp() {
-        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService);
+        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService,
+                aiVerificationLauncher);
     }
 
     @Test

@@ -11,4 +11,6 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
     List<Goal> findAllByOrderByOrderIndexAscIdAsc();
 
     long countByParentIdIsNull();
+
+    long countByParentId(Long parentId);
 }

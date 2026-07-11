@@ -4,5 +4,7 @@ package com.careercoach.jobs;
 public enum JobType {
     PLANNING,
     EVALUATION,
-    AGENT
+    AGENT,
+    /** Tracer/no-op type driving the full lifecycle end-to-end. */
+    ECHO
 }

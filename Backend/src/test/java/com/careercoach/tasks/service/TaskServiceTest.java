@@ -50,11 +50,15 @@ class TaskServiceTest {
     @Mock
     private GamificationService gamificationService;
 
+    @Mock
+    private AiVerificationLauncher aiVerificationLauncher;
+
     private TaskService service;
 
     @BeforeEach
     void setUp() {
-        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService);
+        service = new TaskService(taskRepository, taskTypeDefinitionService, gamificationService,
+                aiVerificationLauncher);
     }
 
     private static Task task(TaskState state, String typeKey, List<String> skillKeys) {
@@ -258,10 +262,10 @@ class TaskServiceTest {
         assertThat(result.getState()).isEqualTo(TaskState.DONE);
     }
 
-    // --- submit: unsupported ---
+    // --- submit: unsupported (AI_ARTIFACT_REVIEW is now routed, not rejected — see below) ---
 
     @ParameterizedTest
-    @EnumSource(value = VerificationMethod.class, names = {"AUTO_QUIZ", "AI_DIALOG", "AI_ARTIFACT_REVIEW"})
+    @EnumSource(value = VerificationMethod.class, names = {"AI_DIALOG"})
     void submit_shouldThrowUnsupportedVerificationMethod_whenNotHonorBased(VerificationMethod method) {
         // Arrange
         Task existing = task(TaskState.IN_PROGRESS, "OTHER_TYPE", List.of("JAVA"));
@@ -271,8 +275,73 @@ class TaskServiceTest {
         // Act / Assert
         assertThatThrownBy(() -> service.submit(1L, 42L, null))
                 .isInstanceOf(UnsupportedVerificationMethodException.class);
-        verifyNoInteractions(gamificationService);
+        verifyNoInteractions(gamificationService, aiVerificationLauncher);
         assertThat(existing.getState()).isEqualTo(TaskState.IN_PROGRESS);
+    }
+
+    // --- submit: AI_ARTIFACT_REVIEW routing (issue-4) ---
+
+    @Test
+    void submit_shouldLaunchEvaluationJobAndSetInProgress_whenAiArtifactReview() {
+        // Arrange
+        Task existing = task(TaskState.IN_PROGRESS, "AI_REVIEW", List.of("JAVA"));
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(taskTypeDefinitionService.get("AI_REVIEW"))
+                .thenReturn(typeDefinition(VerificationMethod.AI_ARTIFACT_REVIEW, 50, false));
+        when(aiVerificationLauncher.launchEvaluation(existing, "my artifact", null)).thenReturn(777L);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Task result = service.submit(1L, 42L, "my artifact");
+
+        // Assert — an EVALUATION job is created; the task waits IN_PROGRESS. No sync award.
+        verify(aiVerificationLauncher).launchEvaluation(existing, "my artifact", null);
+        verifyNoInteractions(gamificationService);
+        assertThat(result.getState()).isEqualTo(TaskState.IN_PROGRESS);
+        assertThat(result.getVerificationJobId()).isEqualTo(777L);
+        assertThat(result.getArtifact()).isEqualTo("my artifact");
+    }
+
+    // --- recordEvaluation (issue-4): backend sets the terminal state after the grade ---
+
+    @Test
+    void recordEvaluation_shouldCompleteTaskAndRecordExp_whenPassed() {
+        // Arrange
+        Task existing = task(TaskState.IN_PROGRESS, "AI_REVIEW", List.of("JAVA"));
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Task result = service.recordEvaluation(1L, true, 40L);
+
+        // Assert
+        assertThat(result.getState()).isEqualTo(TaskState.DONE);
+        assertThat(result.getExpAwarded()).isEqualTo(40L);
+    }
+
+    @Test
+    void recordEvaluation_shouldRejectTask_whenFailed() {
+        // Arrange
+        Task existing = task(TaskState.IN_PROGRESS, "AI_REVIEW", List.of("JAVA"));
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Task result = service.recordEvaluation(1L, false, 0L);
+
+        // Assert
+        assertThat(result.getState()).isEqualTo(TaskState.REJECTED);
+        assertThat(result.getExpAwarded()).isZero();
+    }
+
+    @Test
+    void recordEvaluation_shouldThrowTaskNotFound_whenMissing() {
+        // Arrange
+        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
+
+        // Act / Assert
+        assertThatThrownBy(() -> service.recordEvaluation(99L, true, 10L))
+                .isInstanceOf(TaskNotFoundException.class);
     }
 
     // --- submit: idempotency ---

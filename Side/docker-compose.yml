@@ -1,0 +1,30 @@
+# Local dev orchestration. Run `docker compose up` to start the app on :3000.
+#
+# The source tree is bind-mounted for hot reload, but node_modules is kept in a
+# named volume so the container's natively-compiled better-sqlite3 binary is not
+# shadowed by (or written to) the host. The SQLite file is bind-mounted under
+# ./data so your data persists on the host between runs.
+services:
+  app:
+    build: .
+    # Keep the app up on its own (and across reboots / Docker restarts) rather
+    # than tied to a foreground `up`. Run `docker compose up -d` to start it.
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - ./data:/app/data
+    environment:
+      # SQLite location inside the container (mapped to ./data on the host).
+      NUXT_DATABASE_URL: ./data/tracker.db
+      # File-watching over a bind mount is more reliable with polling on WSL2.
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NUXT_VITE_SERVER_WATCH_USEPOLLING: "true"
+    # Apply migrations, then start the dev server.
+    command: sh -c "npm run db:migrate && npm run dev -- --host 0.0.0.0"
+
+volumes:
+  node_modules:

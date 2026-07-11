@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Minimalist base: quiet neutral canvas, comfortable reading width. */
+:root {
+  --ui-container: 64rem;
+}
