@@ -19,6 +19,6 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` pending.
 - [x] issue-3 — Czat strategiczny z coachem (streaming SSE) — done
 - [x] issue-4 — Routing weryfikacji + generyczny EVALUATION + award + SSE exp-gain/level-up — done
 - [x] issue-5 — QUIZ generowany i auto-oceniany (AUTO_QUIZ) — done
-- [ ] issue-6 — Mock interview (sesja + transkrypt inkrementalny + ocena) — pending
+- [x] issue-6 — Mock interview (sesja + transkrypt inkrementalny + ocena) — done
 - [ ] issue-7 — Pamięć coacha (coach_notes: autonomia + transparentność) — pending
 - [ ] issue-8 — Joby AGENT (Claude CLI, autonomiczne, wynik strukturalny) — pending

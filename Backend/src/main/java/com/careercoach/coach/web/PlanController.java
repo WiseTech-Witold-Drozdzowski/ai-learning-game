@@ -8,12 +8,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.careercoach.coach.PlanningService;
+import com.careercoach.coach.service.PlanningService;
 import com.careercoach.jobs.web.JobResponse;
 
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
+import com.careercoach.coach.web.model.PlanRequest;
 
 /**
  * {@code POST /api/goals/{id}/plan} — start a PLANNING job for a goal. Lives in

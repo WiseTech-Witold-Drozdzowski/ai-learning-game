@@ -37,6 +37,9 @@ import com.careercoach.jobs.JobRepository;
 import com.careercoach.jobs.JobRunner;
 import com.careercoach.jobs.JobStatus;
 import com.careercoach.tasks.repository.TaskRepository;
+import com.careercoach.coach.domain.PlanningOutput;
+import com.careercoach.coach.domain.ProposedGoal;
+import com.careercoach.coach.domain.ProposedTask;
 
 /**
  * End-to-end PLANNING slice (issue-2) against a real Postgres (provided by

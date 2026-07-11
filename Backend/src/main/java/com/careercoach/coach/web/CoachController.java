@@ -6,11 +6,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.careercoach.coach.CoachChatService;
+import com.careercoach.coach.service.CoachChatService;
 
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
+import com.careercoach.coach.web.model.CoachMessageRequest;
 
 /**
  * {@code POST /api/coach/messages} — strategic chat with the coach, replying over SSE

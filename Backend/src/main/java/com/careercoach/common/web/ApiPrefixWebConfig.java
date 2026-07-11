@@ -8,6 +8,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.careercoach.auth.web.MeController;
 import com.careercoach.coach.web.CoachController;
+import com.careercoach.coach.web.MockController;
 import com.careercoach.coach.web.PlanController;
 import com.careercoach.coach.web.QuizController;
 import com.careercoach.common.PingController;
@@ -33,7 +34,7 @@ public class ApiPrefixWebConfig implements WebMvcConfigurer {
             GoalController.class, SkillDefController.class, TaskTypeController.class,
             MeController.class, PingController.class,
             JobController.class, EventController.class, PlanController.class,
-            CoachController.class, QuizController.class);
+            CoachController.class, QuizController.class, MockController.class);
 
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {

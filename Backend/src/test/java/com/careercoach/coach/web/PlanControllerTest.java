@@ -14,9 +14,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.careercoach.coach.IllegalPlanningStateException;
-import com.careercoach.coach.PlanningMode;
-import com.careercoach.coach.PlanningService;
+import com.careercoach.coach.domain.exception.IllegalPlanningStateException;
+import com.careercoach.coach.domain.PlanningMode;
+import com.careercoach.coach.service.PlanningService;
 import com.careercoach.jobs.Job;
 import com.careercoach.jobs.JobStatus;
 import com.careercoach.jobs.JobType;
