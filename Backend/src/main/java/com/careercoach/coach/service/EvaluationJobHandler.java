@@ -53,6 +53,7 @@ public class EvaluationJobHandler implements JobHandler<EvaluationInput> {
     private final QuizGrader quizGrader;
     private final MockMessageRepository mockMessageRepository;
     private final MockSessionRepository mockSessionRepository;
+    private final CoachNoteService coachNoteService;
 
     @Override
     public JobType type() {
@@ -109,6 +110,10 @@ public class EvaluationJobHandler implements JobHandler<EvaluationInput> {
     private EvaluationOutput gradeWithLlm(String prompt) {
         OpenRouterCompletion completion = openRouterClient.complete(prompt);
         EvaluationLlmResponse parsed = objectMapper.readValue(completion.content(), EvaluationLlmResponse.class);
+
+        // Autonomous coach memory: persist the distillate the coach chose to remember. Only
+        // this note content survives (e.g. after a mock) — never the raw material graded here.
+        coachNoteService.applyOps(parsed.coachNotes());
 
         List<SkillBreakdown> breakdown = toBreakdown(parsed);
         long expProposed = breakdown.stream().mapToLong(SkillBreakdown::exp).sum();

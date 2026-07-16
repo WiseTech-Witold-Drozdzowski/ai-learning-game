@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -59,10 +60,12 @@ class EvaluationJobHandlerTest {
     private final QuizGrader quizGrader = mock(QuizGrader.class);
     private final MockMessageRepository mockMessageRepository = mock(MockMessageRepository.class);
     private final MockSessionRepository mockSessionRepository = mock(MockSessionRepository.class);
+    private final CoachNoteService coachNoteService = mock(CoachNoteService.class);
     private final EvaluationJobHandler handler = new EvaluationJobHandler(
             assembler, openRouterClient, JsonMapper.builder().build(),
             gamificationService, careerProfileService, taskService,
-            taskTypeDefinitionService, quizGrader, mockMessageRepository, mockSessionRepository);
+            taskTypeDefinitionService, quizGrader, mockMessageRepository, mockSessionRepository,
+            coachNoteService);
 
     private static Task task() {
         return Task.builder()
@@ -200,5 +203,58 @@ class EvaluationJobHandlerTest {
         EvaluationOutput output = (EvaluationOutput) result.output();
         assertThat(output.passed()).isFalse();
         verify(taskService).recordEvaluation(10L, false, 0L);
+    }
+
+    @Test
+    void handle_shouldApplyCoachNoteDistillate_whenLlmGrades() {
+        // Arrange — the evaluator LLM also emits an autonomous memory distillate (issue-7)
+        arrangeCommon("{\"score\":85,\"passed\":true,\"feedback\":\"Solid\","
+                + "\"skills\":[{\"skillKey\":\"JAVA\",\"exp\":40}],"
+                + "\"coachNotes\":[{\"action\":\"CREATE\",\"content\":\"Strong on REST design\"}]}");
+        when(gamificationService.award(any(AwardCommand.class)))
+                .thenReturn(AwardResult.builder().applied(true).totalGranted(40L).build());
+        when(taskService.recordEvaluation(eq(10L), eq(true), eq(40L)))
+                .thenReturn(Task.builder().id(10L).state(TaskState.DONE).expAwarded(40L).build());
+        EvaluationInput input = new EvaluationInput(10L, "AI_REVIEW", "my artifact", null);
+
+        // Act
+        handler.handle(runningJob(), input);
+
+        // Assert — the note ops parsed from the reply are applied through the memory tool
+        ArgumentCaptor<List<CoachNoteOp>> captor = ArgumentCaptor.forClass(List.class);
+        verify(coachNoteService).applyOps(captor.capture());
+        assertThat(captor.getValue()).singleElement().satisfies(op -> {
+            assertThat(op.action()).isEqualTo(CoachNoteOp.Action.CREATE);
+            assertThat(op.content()).isEqualTo("Strong on REST design");
+        });
+    }
+
+    @Test
+    void handle_shouldNotTouchCoachNotes_whenAutoQuiz() {
+        // Arrange — AUTO_QUIZ grades deterministically without an LLM, so no memory op arises
+        Task quizTask = Task.builder()
+                .id(10L).goalId(5L).typeKey("QUIZ").title("Java quiz")
+                .state(TaskState.IN_PROGRESS).skillKeys(List.of("JAVA")).expAwarded(0L)
+                .quiz(new Quiz(List.of(new Quiz.Question("q", List.of("A", "B"), "A"))))
+                .build();
+        when(taskService.get(10L)).thenReturn(quizTask);
+        when(taskTypeDefinitionService.get("QUIZ")).thenReturn(TaskTypeDefinition.builder()
+                .key("QUIZ").displayName("Quiz").verificationMethod(VerificationMethod.AUTO_QUIZ)
+                .expBase(40).expScaleByScore(true).requiresArtifact(false).build());
+        when(quizGrader.grade(any(), any(), any(), any())).thenReturn(new EvaluationOutput(
+                100, 40L, List.of(new SkillBreakdown("JAVA", 40L)), "100%", true));
+        when(careerProfileService.getSingle())
+                .thenReturn(Optional.of(new CareerProfile(1L, 0L, 1, AvatarState.initial())));
+        when(gamificationService.award(any(AwardCommand.class)))
+                .thenReturn(AwardResult.builder().applied(true).totalGranted(40L).build());
+        when(taskService.recordEvaluation(eq(10L), eq(true), eq(40L)))
+                .thenReturn(Task.builder().id(10L).state(TaskState.DONE).expAwarded(40L).build());
+        EvaluationInput input = new EvaluationInput(10L, "QUIZ", null, List.of("A"));
+
+        // Act
+        handler.handle(runningJob(), input);
+
+        // Assert — the coach memory is never touched on the deterministic quiz path
+        verify(coachNoteService, never()).applyOps(any());
     }
 }
