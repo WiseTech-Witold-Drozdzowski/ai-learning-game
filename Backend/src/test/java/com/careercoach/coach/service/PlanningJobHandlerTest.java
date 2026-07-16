@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.careercoach.ai.OpenRouterClient;
 import com.careercoach.ai.OpenRouterCompletion;
@@ -41,8 +42,9 @@ class PlanningJobHandlerTest {
     private final ContextAssembler assembler = mock(ContextAssembler.class);
     private final OpenRouterClient openRouterClient = mock(OpenRouterClient.class);
     private final GoalService goalService = mock(GoalService.class);
-    private final PlanningJobHandler handler =
-            new PlanningJobHandler(assembler, openRouterClient, goalService, JsonMapper.builder().build());
+    private final CoachNoteService coachNoteService = mock(CoachNoteService.class);
+    private final PlanningJobHandler handler = new PlanningJobHandler(
+            assembler, openRouterClient, goalService, JsonMapper.builder().build(), coachNoteService);
 
     private static Goal proposedChild(Long id, String title, String description) {
         return Goal.builder()
@@ -109,5 +111,27 @@ class PlanningJobHandlerTest {
         assertThat(output.proposedGoals()).isNullOrEmpty();
         // Tasks are NOT persisted by the job — no Goal writes happen either.
         verify(goalService, never()).createProposedChild(any(), anyString(), any());
+    }
+
+    @Test
+    void handle_shouldApplyCoachNoteOps_whenLlmReturnsThemDuringPlanning() {
+        // Arrange — the coach autonomously records a memory through the structured tool (issue-7)
+        when(assembler.assemble(7L)).thenReturn("PROMPT");
+        when(openRouterClient.complete(anyString())).thenReturn(new OpenRouterCompletion(
+                "{\"tasks\":[{\"title\":\"t\",\"description\":\"d\",\"typeKey\":\"MOCK\",\"skillKeys\":[]}],"
+                        + "\"coachNotes\":[{\"action\":\"CREATE\",\"content\":\"Aims for a backend role\"}]}"));
+        Job job = new Job(JobType.PLANNING, JobStatus.RUNNING);
+
+        // Act
+        handler.handle(job, new PlanningInput(7L, PlanningMode.GENERATE_TASKS));
+
+        // Assert — the parsed note ops are handed to the memory service verbatim
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.List<CoachNoteOp>> captor = ArgumentCaptor.forClass(java.util.List.class);
+        verify(coachNoteService).applyOps(captor.capture());
+        assertThat(captor.getValue()).singleElement().satisfies(op -> {
+            assertThat(op.action()).isEqualTo(CoachNoteOp.Action.CREATE);
+            assertThat(op.content()).isEqualTo("Aims for a backend role");
+        });
     }
 }

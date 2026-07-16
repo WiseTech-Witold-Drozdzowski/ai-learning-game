@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.careercoach.coach.domain.CoachNote;
 import com.careercoach.config.domain.SkillDefinition;
 import com.careercoach.config.service.SkillDefinitionService;
 import com.careercoach.gamification.domain.AvatarState;
@@ -52,6 +53,9 @@ class ContextAssemblerTest {
 
     @Mock
     private TaskService taskService;
+
+    @Mock
+    private CoachNoteService coachNoteService;
 
     @InjectMocks
     private ContextAssembler assembler;
@@ -158,5 +162,25 @@ class ContextAssemblerTest {
         // Assert — catalog still present, no exception on missing profile
         assertThat(prompt).contains("JAVA");
         assertThat(prompt).contains("Behavioural preparation");
+    }
+
+    @Test
+    void assemble_shouldIncludeActiveCoachNotes_whenPresent() {
+        // Arrange — issue-7: the active coach notes fill the seam left in issue-2
+        when(goalService.get(7L)).thenReturn(goal(7L, "Behavioural preparation", GoalState.ACTIVE));
+        when(goalService.getTree()).thenReturn(List.of());
+        when(careerProfileService.getSingle())
+                .thenReturn(Optional.of(new CareerProfile(1L, 0L, 1, AvatarState.initial())));
+        when(profileQueryService.listSkills()).thenReturn(List.of());
+        when(skillDefinitionService.list()).thenReturn(List.of());
+        when(taskService.recentCompleted()).thenReturn(List.of());
+        when(coachNoteService.listActive()).thenReturn(List.of(
+                CoachNote.builder().id(1L).content("Prefers hands-on over theory").active(true).build()));
+
+        // Act
+        String prompt = assembler.assemble(7L);
+
+        // Assert — the active note's content is injected into the prompt
+        assertThat(prompt).contains("Prefers hands-on over theory");
     }
 }

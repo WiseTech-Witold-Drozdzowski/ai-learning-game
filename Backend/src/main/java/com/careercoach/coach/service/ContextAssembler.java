@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.careercoach.coach.domain.CoachNote;
 import com.careercoach.config.domain.SkillDefinition;
 import com.careercoach.config.service.SkillDefinitionService;
 import com.careercoach.gamification.service.CareerProfileService;
@@ -21,8 +22,8 @@ import lombok.RequiredArgsConstructor;
  * Builds the coach prompt from hard DB state (BACKEND_DESIGN §6): profile +
  * strategic/target goal, the active goal tree, skill levels, the available
  * {@code SkillDefinition} catalog (the coach chooses from it, never invents),
- * the last N completed tasks and a {@code coach_notes} section (empty seam until
- * issue-7). Mock transcripts are deliberately NOT included.
+ * the last N completed tasks and the active {@code coach_notes} (issue-7 — the coach's
+ * durable memory). Inactive notes and mock transcripts are deliberately NOT included.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,6 +36,7 @@ public class ContextAssembler {
     private final ProfileQueryService profileQueryService;
     private final SkillDefinitionService skillDefinitionService;
     private final TaskService taskService;
+    private final CoachNoteService coachNoteService;
 
     /** Assemble the full context prompt for planning around {@code goalId}. */
     public String assemble(Long goalId) {
@@ -101,9 +103,17 @@ public class ContextAssembler {
         }
         sb.append('\n');
 
-        // Empty seam until issue-7; mock transcripts are deliberately NOT assembled here.
+        // Only ACTIVE notes enter the prompt (issue-7); inactive notes and mock transcripts
+        // are deliberately NOT assembled here.
         sb.append("## Coach notes\n");
-        sb.append("(none)\n");
+        List<CoachNote> notes = coachNoteService.listActive();
+        if (notes.isEmpty()) {
+            sb.append("(none)\n");
+        } else {
+            for (CoachNote note : notes) {
+                sb.append("- ").append(note.getContent()).append('\n');
+            }
+        }
 
         return sb.toString();
     }

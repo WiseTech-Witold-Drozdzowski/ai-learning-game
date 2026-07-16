@@ -34,6 +34,7 @@ public class PlanningJobHandler implements JobHandler<PlanningInput> {
     private final OpenRouterClient openRouterClient;
     private final GoalService goalService;
     private final ObjectMapper objectMapper;
+    private final CoachNoteService coachNoteService;
 
     @Override
     public JobType type() {
@@ -50,6 +51,9 @@ public class PlanningJobHandler implements JobHandler<PlanningInput> {
         String prompt = contextAssembler.assemble(input.goalId());
         OpenRouterCompletion completion = openRouterClient.complete(prompt);
         PlanningLlmResponse parsed = objectMapper.readValue(completion.content(), PlanningLlmResponse.class);
+
+        // Autonomous coach memory: apply any note operations the coach chose during planning.
+        coachNoteService.applyOps(parsed.coachNotes());
 
         return switch (input.mode()) {
             case DECOMPOSE -> new JobResult(new PlanningOutput(persistProposedGoals(input.goalId(), parsed), List.of()));
