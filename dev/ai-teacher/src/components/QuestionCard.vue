@@ -8,7 +8,7 @@ const props = defineProps({
   index: { type: Number, required: true },
   modelValue: { type: String, default: '' },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'toggle-assist'])
 
 const evaluation = computed(() => props.question.evaluation)
 const followUp = computed(() => props.question.followUp)
@@ -40,6 +40,16 @@ async function answerFollowUp() {
       <span v-if="evaluation" class="tag tag-done">evaluated</span>
       <span v-else-if="modelValue.trim()" class="tag tag-answered">answered</span>
       <span v-else class="tag tag-todo">todo</span>
+      <button
+        class="assist-toggle"
+        :class="{ active: question.assistRequired }"
+        :title="question.assistRequired
+          ? 'Assist requested — the evaluator will add an explanation with examples. Click to unmark.'
+          : 'Mark for assist — next evaluation adds an explanation with examples, even for a good answer.'"
+        @click="emit('toggle-assist')"
+      >
+        {{ question.assistRequired ? '🆘 Assist required' : '🛟 Request assist' }}
+      </button>
     </header>
 
     <p class="question">{{ question.question }}</p>
@@ -60,6 +70,12 @@ async function answerFollowUp() {
         <span v-if="evaluation.verdict" class="verdict">{{ evaluation.verdict }}</span>
       </div>
       <p v-if="evaluation.feedback" class="feedback">{{ evaluation.feedback }}</p>
+    </section>
+
+    <!-- explanation is agent-written HTML from the local topic file -->
+    <section v-if="question.explanation" class="explanation">
+      <div class="explanation-head"><strong>📖 Explanation</strong></div>
+      <div class="explanation-body" v-html="question.explanation"></div>
     </section>
 
     <section v-if="followUp" class="followup">

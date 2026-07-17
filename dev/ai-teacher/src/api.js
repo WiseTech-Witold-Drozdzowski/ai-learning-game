@@ -3,16 +3,44 @@ async function json(res) {
   return res.json()
 }
 
+// Section ids are paths like "java/parallelism" — encode so the slash
+// stays inside one URL segment.
+const enc = (id) => encodeURIComponent(id)
+
 export function listSections() {
   return fetch('/api/sections').then(json)
 }
 
 export function getSection(id) {
-  return fetch(`/api/sections/${id}`).then(json)
+  return fetch(`/api/sections/${enc(id)}`).then(json)
+}
+
+export function clearLowScores(id, threshold) {
+  return fetch(`/api/sections/${enc(id)}/clear-low-scores`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ threshold }),
+  }).then(json)
+}
+
+export function setAssistRequired(id, questionId, assistRequired) {
+  return fetch(`/api/sections/${enc(id)}/assist`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questionId, assistRequired }),
+  }).then(json)
+}
+
+export function setHidden(id, hidden, threshold) {
+  return fetch(`/api/sections/${enc(id)}/hidden`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hidden, threshold }),
+  }).then(json)
 }
 
 export function saveAnswers(id, answers) {
-  return fetch(`/api/sections/${id}/answers`, {
+  return fetch(`/api/sections/${enc(id)}/answers`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ answers }),

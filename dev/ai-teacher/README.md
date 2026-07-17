@@ -2,13 +2,19 @@
 
 A small Vue app to study by answering questions and getting them graded by an agent.
 
+Content is organized in three levels: **subject → topic → questions**
+(e.g. Java → Parallelism → questions). A subject is a directory under `data/`,
+a topic is a JSON file inside it. Deeper nesting is already supported by the
+server (any directory depth works), the UI currently groups by the first level.
+
 Loop:
-1. **Agent writes questions** into a section JSON (`/aiteacher-questions`).
+1. **Agent writes questions** into a topic JSON (`/aiteacher-questions`).
 2. **You answer** in the UI and click **Save answers**.
 3. **Agent grades** the answers and adds a follow-up (`/aiteacher-evaluate`).
 4. Click **Reload** in the UI to see the evaluation and follow-up.
 
-Each section is a separate JSON file in `data/`. The sidebar lets you jump between them.
+The sidebar groups topics by subject; the dashboard shows per-subject and
+per-topic progress.
 
 ## Run (Docker)
 
@@ -23,17 +29,37 @@ and the UI read and write the same files.
 
 ## Agents (run manually in the console)
 
-- `/aiteacher-questions` — generate a question set for a topic.
+- `/aiteacher-questions` — generate a question set for a subject/topic.
 - `/aiteacher-evaluate` — grade your answers and add follow-ups.
 
-Both are skills in `.claude/skills/` and operate on `dev/ai-teacher/data/*.json`.
+Both are skills in `.claude/skills/` and operate on `dev/ai-teacher/data/<subject>/<topic>.json`.
 
-## Section JSON format
+## Data layout
+
+```
+data/
+  java/
+    core.json           <- topic "Core Java"
+    parallelism.json    <- topic "Parallelism"
+  javascript/
+    _subject.json       <- optional: { "title": "JavaScript" } (pretty subject name)
+    basics.json
+  system-design/
+    fundamentals.json
+```
+
+- Subject display name defaults to Title Case of the directory name
+  (`system-design` → "System Design"); override it with `_subject.json`.
+- Files starting with `_` are metadata, never topics.
+- The API addresses a topic by its path id, e.g. `java/parallelism`
+  (URL-encoded in requests: `/api/sections/java%2Fparallelism`).
+
+## Topic JSON format
 
 ```json
 {
-  "id": "javascript-basics",
-  "title": "JavaScript Basics",
+  "id": "parallelism",
+  "title": "Parallelism",
   "description": "optional",
   "questions": [
     {
@@ -47,6 +73,7 @@ Both are skills in `.claude/skills/` and operate on `dev/ai-teacher/data/*.json`
 }
 ```
 
+- `id` equals the topic filename without `.json`.
 - The UI only ever writes the `answer` field (merged in, never clobbering agent output).
 - Agents write `question`, `evaluation`, and `followUp`.
 
