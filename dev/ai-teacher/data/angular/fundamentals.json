@@ -1,0 +1,63 @@
+{
+  "id": "fundamentals",
+  "title": "Angular Fundamentals",
+  "description": "Components, dependency injection, lifecycle, directives, pipes and routing.",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is a component in Angular, and what are the roles of the three main parts of its definition: the template, the class, and the metadata in the `@Component` decorator?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q2",
+      "question": "Explain the difference between property binding `[value]=\"x\"`, event binding `(click)=\"f()\"`, and two-way binding `[(ngModel)]=\"x\"`. What is two-way binding actually syntactic sugar for?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q3",
+      "question": "How do parent and child components communicate in Angular? Compare `input()`/`output()` (or the decorator equivalents `@Input`/`@Output`) and explain when you would reach for a shared service instead.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q4",
+      "question": "How does Angular's dependency injection work? Explain what an injector is, what `providedIn: 'root'` means, and what changes when you instead list a service in a component's `providers` array.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q5",
+      "question": "Compare constructor injection with the `inject()` function. Why has `inject()` become the recommended style, and in which contexts can `inject()` be called at all (what is an 'injection context')?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q6",
+      "question": "Walk through the component lifecycle: what are `ngOnInit`, `ngOnChanges`, `ngAfterViewInit` and `ngOnDestroy` for, and why is initialization logic usually put in `ngOnInit` rather than the constructor?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q7",
+      "question": "What is the difference between a structural directive and an attribute directive? Give an example of each and explain what the `*` prefix (e.g. in `*ngIf`) tells the compiler to do.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q8",
+      "question": "Explain how the Angular Router matches a URL to a component. Cover route configuration, route parameters (`/users/:id`), and lazy loading a route with `loadComponent`/`loadChildren` — why does lazy loading matter for startup time?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    }
+  ]
+}
