@@ -1,0 +1,42 @@
+{
+  "id": "hibernate",
+  "title": "Hibernate",
+  "description": "Hibernate and JPA: entity lifecycle, persistence context, fetching strategies and common pitfalls.",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is the relationship between JPA and Hibernate? Explain the roles of EntityManager, the persistence context and the first-level cache.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q2",
+      "question": "Describe the entity lifecycle states in Hibernate (transient, managed/persistent, detached, removed). What is dirty checking and when does Hibernate actually flush changes to the database?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q3",
+      "question": "What is the N+1 select problem? Show how it arises with lazy-loaded associations and describe at least two ways to fix it (e.g. fetch join, @EntityGraph, batch fetching).",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q4",
+      "question": "Compare LAZY and EAGER fetching. Why is EAGER on collections considered harmful, and what causes a LazyInitializationException? Why is the Open Session in View pattern controversial?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q5",
+      "question": "How does Hibernate handle concurrent modifications? Compare optimistic locking with @Version against pessimistic locking, and explain what happens when an OptimisticLockException is thrown.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "id": "data-and-storage",
+  "title": "Data & Storage",
+  "description": "Choosing databases, indexing, replication and consistency of stored data.",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What does a database index actually do under the hood, and why don't we simply index every column?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q2",
+      "question": "When would you pick a relational database over a document store like MongoDB, and when the other way around? Give the deciding factors, not just examples.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q3",
+      "question": "Explain leader-follower (primary-replica) replication: what problems does it solve, and what new problem does replication lag introduce for the application?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q4",
+      "question": "What is a transaction isolation level? Describe one anomaly (e.g. dirty read, non-repeatable read, phantom) and which level prevents it.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q5",
+      "question": "Your table has 500 million rows and analytical queries are killing the production database. What architectural options do you have, and what are their trade-offs?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q6",
+      "question": "What is optimistic vs pessimistic locking, and how would you choose between them for a seat-reservation system?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q7",
+      "question": "Explain event sourcing: what does it mean to store events instead of current state, what does it buy you, and what makes it expensive to live with?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    }
+  ]
+}

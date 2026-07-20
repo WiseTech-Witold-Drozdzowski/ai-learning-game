@@ -2,3 +2,8 @@ node_modules
 dist
 .git
 *.log
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/_pending.json
+data/_evaluations.json

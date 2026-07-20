@@ -1,3 +1,8 @@
 node_modules
 dist
 *.log
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/_pending.json
+data/_evaluations.json

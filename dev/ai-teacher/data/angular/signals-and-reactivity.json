@@ -1,0 +1,89 @@
+{
+  "id": "signals-and-reactivity",
+  "title": "Signals & Reactivity",
+  "description": "Angular's signal-based reactivity: signal, computed, effect, signal inputs/outputs, linkedSignal, resource and RxJS interop.",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is a signal in Angular, and how do you create, read and update one (`signal`, calling it as a function, `set`, `update`)? What problem do signals solve that plain class fields did not?",
+      "answer": "Signal is a new construct in angular that brings reactivity to it. This concept was taken from vue / react when we create a reactive structure which then tracks who's the reader of that value and when it changes it marks the value stale so the reader knows that it should pull the latest value. \n\nin angular you create a singal with signal method inside you pass the initial value. \nYou can change its value by set or you can use update to read the current value and then update it. \n\nYou read by simply just call it eg. var sign = singal(0) then you readit by sign().\n\nIt solves the problem of letting know the consumer that something has changed. In this case it's automatically re-rendered once it's changed by angular zoneless observer. ",
+      "evaluation": {
+        "score": "7/10",
+        "verdict": "Good",
+        "feedback": "The mechanics are all correct: create with signal(initialValue), read by calling it as a function, change with set() or update() (update receives the current value). The consumer-tracking intuition is right too. Two gaps: (1) the 'problem solved' part is the weakest — the real win over plain class fields is that with zone.js Angular had NO idea what changed, so any async event triggered a check of the whole component tree; signals give Angular a precise dependency graph, so it knows exactly which views are dirty, which is what makes zoneless change detection possible ('zoneless observer' isn't a thing — signals REPLACE zone.js, they aren't observed by it). (2) Worth knowing: signals use an equality check (Object.is by default), so set() with the same value notifies nobody."
+      },
+      "followUp": "Signals compare values with Object.is by default. If you store an array in a signal and mutate it with push(), do consumers update? How do you make such a change visible, and when would you pass a custom `equal` function?",
+      "hidden": true
+    },
+    {
+      "id": "q2",
+      "question": "How does `computed()` work? Explain how it tracks its dependencies, when it recalculates, and why it is both lazy and memoized.",
+      "answer": "computed is a reactive function that returns calculated value of their dependencies. So it based on signals reactivity, every reactive field that is used inside it is tracked - once its changed computed will be re-calculated too, but only if it has a consumer. So only when consumer pulls its value it will be computed and then, if all dependencies have the same value it won't be re-computed again.",
+      "evaluation": {
+        "score": "8/10",
+        "verdict": "Good",
+        "feedback": "Solid — dependency tracking, laziness and memoization are all essentially right. Two refinements: (1) 'only if it has a consumer' is slightly off: when a dependency changes, the computed is merely marked dirty; recomputation happens on the NEXT READ, whoever the reader is — a template, an effect, or plain code calling it. No read, no work — that's the laziness. (2) Tracking is dynamic: only signals actually read during the LAST execution are dependencies, so a computed like `flag() ? a() : b()` drops b() as a dependency while flag is true. Memoization: the cached value is returned until a dependency actually changes according to its equality function."
+      },
+      "followUp": "A computed reads `flag() ? a() : b()`. While flag() is true, does updating b() mark the computed dirty or cause any recomputation? Explain what dynamic dependency tracking does here and why it matters for performance.",
+      "hidden": true
+    },
+    {
+      "id": "q3",
+      "question": "What is `effect()` for, and why does the Angular team advise using it sparingly? Give one legitimate use case and one case where `computed()` or template binding is the better tool.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null,
+      "explanation": "<p><strong>Intuition:</strong> <code>effect()</code> registers a function that Angular re-runs whenever any signal it read during its last run changes. It is for <em>side effects that leave the Angular world</em> — logging, storage, third-party DOM libs — never for deriving state.</p><p><strong>Lifecycle:</strong> created in an injection context (constructor or field initializer); runs once immediately-ish (scheduled) — that first run records its dependencies; on any dependency change it is scheduled and re-runs (multiple sets coalesce into one run); it is destroyed automatically with the component, and <code>onCleanup</code> runs before every re-run and on destroy.</p><pre><code>export class ThemeComponent {\n  theme = signal&lt;'light' | 'dark'&gt;('light');\n\n  constructor() {\n    // legitimate: sync a signal OUT of Angular\n    effect(() =&gt; {\n      localStorage.setItem('theme', this.theme()); // runs now, then after each change\n    });\n\n    // cleanup: runs before each re-run and on component destroy\n    effect((onCleanup) =&gt; {\n      const id = setInterval(() =&gt; console.log(this.theme()), 1000);\n      onCleanup(() =&gt; clearInterval(id));\n    });\n  }\n}</code></pre><p><strong>Anti-pattern</strong> — using an effect to derive state:</p><pre><code>// BAD: hidden write chain, runs later, can glitch\neffect(() =&gt; this.fullName.set(this.first() + ' ' + this.last()));\n\n// GOOD: declarative, lazy, memoized\nfullName = computed(() =&gt; this.first() + ' ' + this.last());</code></pre><p><strong>Takeaway:</strong> if the effect's body ends in <code>someSignal.set(...)</code>, you almost certainly wanted <code>computed()</code> (or <code>linkedSignal()</code>) instead.</p>"
+    },
+    {
+      "id": "q4",
+      "question": "Explain signal-based component APIs: `input()`, `input.required()`, `output()` and `model()`. What does `model()` give you that a plain `input()` does not, and how does it enable two-way binding on your own component?",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null
+    },
+    {
+      "id": "q5",
+      "question": "What problem does `linkedSignal()` solve? Describe a concrete scenario — e.g. a selected item that must reset when the list it belongs to changes — and explain how it differs from `computed()`.",
+      "answer": "",
+      "evaluation": null,
+      "followUp": null,
+      "explanation": "<p><strong>Intuition:</strong> <code>linkedSignal()</code> is a <em>writable</em> signal whose value is recomputed from a source when that source changes. It fills the gap between <code>signal()</code> (writable, but knows nothing about other state) and <code>computed()</code> (derived, but read-only — you can never <code>set()</code> it).</p><p><strong>Scenario:</strong> a shipping selector — the user may pick any option, but when the options list changes the selection must snap back to something valid:</p><pre><code>options = signal(['standard', 'express', 'overnight']);\n\n// derived like computed, but writable\nselected = linkedSignal(() =&gt; this.options()[0]);\n\nthis.selected.set('overnight');          // user picks one — allowed\nthis.options.set(['pickup', 'courier']); // source changed -&gt; selected resets to 'pickup'</code></pre><p>The long form gets the previous value, so you can <em>keep</em> the selection when it is still valid:</p><pre><code>selected = linkedSignal({\n  source: this.options,\n  computation: (opts, prev) =&gt;\n    prev &amp;&amp; opts.includes(prev.value) ? prev.value : opts[0],\n});</code></pre><p><strong>vs computed():</strong> a computed would always show <code>options()[0]</code> and throw away the user's choice — it cannot hold local writes. <strong>Takeaway:</strong> use <code>linkedSignal()</code> for \"local state with a reset rule\"; use <code>computed()</code> when the value is purely derived and never set directly.</p>"
+    },
+    {
+      "id": "q6",
+      "question": "Describe the `resource()` / `httpResource()` APIs for loading async data with signals. How do they track a reactive request, what states do they expose (value, status, error), and what happens when the request signal changes mid-flight?",
+      "answer": "httpResource will treat the http as a single source of truth. Will fetch data and keep it there. \nIT exposes data, loading, error. \n\nwhen the request signal changes mid-flight the http request is being ignored. \n\nNot sure what \"resources()\" stands for.",
+      "evaluation": {
+        "score": "4/10",
+        "verdict": "Partially correct",
+        "feedback": "The exposed-state trio is roughly right — the real names are value(), status() and error(), plus helpers isLoading() and hasValue(); status() is a signal of 'idle' | 'loading' | 'reloading' | 'resolved' | 'error' | 'local'. 'Single source of truth for HTTP' is a fair intuition for httpResource. Two gaps: (1) mid-flight the old request is not just ignored — it is actively CANCELLED: resource() hands your loader an AbortSignal to honor, and httpResource cancels the underlying HttpClient request itself, then a new load starts. (2) resource() is the general primitive the question asked about: resource({ params, loader }) where params is a reactive function — any signal read inside it re-triggers the loader — and loader returns a Promise. httpResource(() => url) is the HTTP-specialized version built on the same idea; the request URL/options function is reactive in exactly the same way. Also note the value is writable (you can set() it locally, which flips status to 'local')."
+      },
+      "followUp": "resource()'s loader receives an abortSignal in its parameters. Why is honoring it the loader's job rather than Angular's, and what concretely goes wrong — network-wise and state-wise — if your fetch ignores it while the params signal changes rapidly (e.g. a fast-typing user)?"
+    },
+    {
+      "id": "q7",
+      "question": "How do signals and RxJS interoperate? Explain `toSignal()` and `toObservable()`, including what initial value problem `toSignal()` has to deal with and where subscription/cleanup happens.",
+      "answer": "toSignal will convert observable into signal, toObservable does it the pther way. \n\nproblem is that observable only worked when it was subsribed - toSignal deals with that. Please explain in depth how does it work during request assist.",
+      "evaluation": {
+        "score": "3/10",
+        "verdict": "Partially correct",
+        "feedback": "The two directions are right: toSignal() wraps an observable in a signal, toObservable() does the reverse. But the stated problem is off — toSignal() does not solve 'observables only work when subscribed'; in fact it subscribes EAGERLY the moment you call it, which is itself a behavior change worth knowing (a cold observable starts producing immediately). The initial-value problem the question asked about is different: a signal must always return a value synchronously, but an observable may not have emitted yet — so toSignal() returns undefined until the first emission, unless you pass initialValue, or requireSync: true for observables that emit synchronously on subscribe (e.g. BehaviorSubject). Cleanup was not addressed: both functions must run in an injection context (or be given an Injector), and toSignal auto-unsubscribes when that injector is destroyed. See the explanation below for the full picture."
+      },
+      "followUp": "toSignal(obs, { requireSync: true }) throws at creation for a plain Subject but works for a BehaviorSubject — why exactly? And given that toObservable() delivers values via an effect, how many emissions does a subscriber see if you set() the source signal three times synchronously in one tick?",
+      "assistRequired": true,
+      "explanation": "<p><strong>Intuition:</strong> a signal must always hold a current value you can read synchronously; an observable is a stream that may emit later (or never). <code>toSignal()</code> bridges this by <em>subscribing immediately</em> and caching the latest emission in a signal; <code>toObservable()</code> watches a signal with an effect and emits each new value.</p><pre><code>count$ = interval(1000);\n\n// subscribes RIGHT NOW (eager!), caches latest value\ncount = toSignal(this.count$);                      // Signal&lt;number | undefined&gt;\ncount0 = toSignal(this.count$, { initialValue: 0 }); // Signal&lt;number&gt;\n// requireSync: obs MUST emit during subscribe (BehaviorSubject does), else it throws\nuser = toSignal(this.user$, { requireSync: true });</code></pre><p><strong>The initial-value problem:</strong> between subscribing and the first emission the signal still has to return <em>something</em> — hence <code>undefined</code> by default, or your <code>initialValue</code>, or <code>requireSync: true</code> when the source emits synchronously. If the observable errors, reading the signal rethrows that error.</p><pre><code>query = signal('');\nquery$ = toObservable(this.query); // emits via an effect\n\nthis.query.set('a'); this.query.set('ab'); this.query.set('abc');\n// effect runs once after the tick -&gt; subscriber sees only 'abc'</code></pre><p><strong>Subscription &amp; cleanup:</strong> both must be called in an injection context (constructor / field initializer) or given an <code>Injector</code>. When that injector is destroyed, <code>toSignal</code> unsubscribes and <code>toObservable</code> completes — no manual teardown.</p><p><strong>Takeaway:</strong> <code>toSignal</code> = eager subscribe + cache latest; <code>toObservable</code> = effect-driven, so synchronous bursts coalesce to the last value.</p>"
+    },
+    {
+      "id": "q8",
+      "question": "After the introduction of signals, when is RxJS still the right choice in an Angular app? Contrast the strengths of each model — think event streams, debouncing, cancellation, combining async sources vs. synchronous derived state.",
+      "answer": "During moments when the state should be remembered.",
+      "evaluation": {
+        "score": "2/10",
+        "verdict": "Incorrect",
+        "feedback": "This is backwards — holding and remembering the CURRENT state is exactly what signals are best at (a signal always has a value; that's its defining property). RxJS remains the right tool for EVENTS OVER TIME, where the interesting thing is the sequence, not the latest value: debouncing/throttling user input (debounceTime), cancelling stale async work (switchMap), retries with backoff (retry), combining multiple async sources (combineLatest, forkJoin), and push-based streams like websockets. Rule of thumb: signals for state — synchronous, always-current, cheaply derived via computed(); RxJS for event streams and async orchestration. In practice you often do the time-based work in RxJS and land the final result in a signal via toSignal()."
+      },
+      "followUp": "A typeahead must debounce keystrokes by 300 ms, drop stale HTTP responses when a newer query is typed, and expose the result list to the template. Which parts would you build with RxJS operators, which with signals, and where do toSignal()/toObservable() sit in that chain?"
+    }
+  ]
+}
