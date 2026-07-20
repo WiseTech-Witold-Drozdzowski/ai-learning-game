@@ -6,30 +6,44 @@
     {
       "id": "q1",
       "question": "Compare REST and gRPC as communication styles between services. What properties of each would push you toward one or the other?",
-      "answer": "",
-      "evaluation": null,
-      "followUp": null
+      "answer": "REST uses json that is send with plain json. gRPC is Remote procedure call which is in protobuffer. \n\nREST is more flexible and it have this model of describing resources. So we have reosource and by using verbs we do actions on that resource. This way would keep our app much more cosistent, and using plain JSON makes it more flexible - e.g. if we add a new non-required field in our server, it's backward compatible for older clients (if that's new field is not curcial in our application). \n\nRemoteProcedureCalls are more strict, but with using protobuffer the size of the payload might be smaller and it's faster.\n\nWhen communicating with FE i'd use normal REST as its environment is well established, when communicating between microservices I'd use gRPC. ",
+      "evaluation": {
+        "score": "7/10",
+        "verdict": "Good",
+        "feedback": "The core contrast is right: REST models resources acted on with HTTP verbs, JSON is loosely coupled (unknown fields are ignored, so additive changes are safe), while gRPC is stricter, with a smaller binary payload and better performance. The final recommendation — REST for browser-facing APIs, gRPC service-to-service — is the textbook conclusion. What's missing is WHY gRPC is faster beyond payload size: it runs on HTTP/2 (multiplexed streams over one connection, header compression) and supports streaming (server, client and bidirectional), which REST has no native answer to. Also missing: gRPC is contract-first — the .proto file generates typed clients/servers in many languages, which is a big part of its appeal between teams. And two nits: REST is not tied to JSON (that's convention, not the architecture), and browsers cannot speak native gRPC — you need grpc-web or a gateway, which is another reason REST wins at the edge. Trade-offs you didn't mention: REST gets HTTP caching, easy debugging with curl, and ubiquitous tooling; gRPC binary frames are opaque to most proxies and humans."
+      },
+      "followUp": "In protobuf, every field has a number (`string name = 1;`). Why must you never reuse a field number of a deleted field, and how does this numbering scheme make protobuf messages both compact and backward/forward compatible in a way JSON-with-field-names is not?"
     },
     {
       "id": "q2",
       "question": "What makes an API change backward-compatible vs breaking, and what strategies exist for evolving an API that external clients already depend on?",
-      "answer": "",
-      "evaluation": null,
-      "followUp": null
+      "answer": "If the new version of service can handle requests from the old client - is backward compatibile. If we introduce a new field that is required thus old client not knowing that can't use it - it's breaking change. \n\nStrategies are e.g. proper versioning, mayor, minor, patching. Mayor are breaking changes, minor add functionality but are backward compatible. Patches fix bugs.",
+      "evaluation": {
+        "score": "6/10",
+        "verdict": "Partially correct",
+        "feedback": "The definition is right — backward compatible means old clients keep working against the new server — and 'new required request field' is the canonical breaking change. But the answer is thin on both halves. Other breaking changes worth naming: removing or renaming a response field the client reads, changing a field's type or meaning, tightening validation, changing error codes or auth requirements. Safe changes: adding optional request fields, adding response fields (assuming clients are 'tolerant readers' that ignore unknowns), adding new endpoints. On strategies, semver (major/minor/patch — note the spelling, not 'mayor') is a version NUMBERING convention, not an evolution strategy by itself. The real strategies: prefer additive-only changes so you never need to break; when you must break, version the API surface (/v1/ in the URL, or an Accept/media-type header) and run both versions side by side; publish a deprecation policy with sunset dates and telemetry on who still calls the old version; and catch accidental breaks with consumer-driven contract tests. External clients you don't control are exactly why 'just tell everyone to upgrade' is not an option."
+      },
+      "followUp": "Removing a field from a RESPONSE breaks clients that read it, yet many teams say 'you can never remove anything from a public API, only add'. What does the 'tolerant reader' principle demand from the CLIENT side, and how would you ever safely retire a response field that telemetry says nobody should need anymore?"
     },
     {
       "id": "q3",
       "question": "Offset-based pagination (page=5&size=20) misbehaves on large, frequently-changing datasets. Why, and how does cursor (keyset) pagination fix it?",
       "answer": "",
       "evaluation": null,
-      "followUp": null
+      "followUp": null,
+      "assistRequired": true,
+      "explanation": "<p><strong>Intuition:</strong> <code>page=5&amp;size=20</code> means \"skip 100 rows, give me the next 20\". Two things go wrong: the database must still <em>walk and discard</em> those 100 rows (at page 5000 that's 100,000 rows scanned for 20 returned — cost grows with the offset), and the offset counts <em>whatever the data looks like right now</em>, so concurrent inserts/deletes shift the pages under the user.</p><pre><code>-- user is reading page 5 (rows 101-120), sorted newest-first\n-- meanwhile 3 new rows are inserted at the top\n-- 'page=6' now skips 120 rows of the SHIFTED list:\n--   3 rows the user already saw appear again (duplicates)\n-- if 3 rows were DELETED instead, 3 unseen rows are silently skipped</code></pre><p><strong>Cursor (keyset) pagination</strong> replaces \"skip N\" with \"continue after the last row I saw\". The server returns an opaque cursor encoding the sort-key values of the last item; the next request filters on it:</p><pre><code>SELECT * FROM posts\nWHERE (created_at, id) &lt; (:last_created_at, :last_id)  -- resume after cursor\nORDER BY created_at DESC, id DESC\nLIMIT 20;</code></pre><ul><li><strong>Fast:</strong> with an index on <code>(created_at, id)</code> the DB seeks straight to the cursor — no rows scanned and thrown away, page 1 and page 5000 cost the same.</li><li><strong>Stable:</strong> the anchor is a concrete row, not a count — inserts/deletes elsewhere can't cause duplicates or skips.</li><li><strong>Tie-breaker matters:</strong> <code>id</code> is added because <code>created_at</code> alone isn't unique — a non-unique cursor can skip or repeat rows on the boundary.</li></ul><p><strong>The trade-off:</strong> you lose \"jump to page 37\" and total page counts — you can only walk forward (or backward with a reversed cursor). That's why keyset fits infinite-scroll feeds and APIs (GitHub, Stripe, Slack all use cursors), while offset survives in small admin tables where random page access matters more than correctness.</p>"
     },
     {
       "id": "q4",
       "question": "A client needs live updates from the server (e.g. a chat or a dashboard). Compare polling, long polling, server-sent events and WebSockets — when is each good enough?",
-      "answer": "",
-      "evaluation": null,
-      "followUp": null
+      "answer": "Polling is just asking the server about changes. Usually wastes a lot of resources. \"Is it there yet\" - \"No\", repeat after 3-4 secods. Usually we won't be notified immediatelly. But its advantage is simplicity and resilience - if one of the request fail - we'll send another one. \n\nLong pooling - you keep the connection open and it waits for 30-40 seconds. It's quite bad - keeps the connection open and you don't have a quick feedback whether the server is under big burden or what. \n\nServer side events - quite good, you establish a connection once and then server can send you arbitrary events, as many as it likes to you on the FE. Sometimes it's problematic if we have a distibuted systems - a lot of servers and we have this connection usually with one of them - we need to find a way how to let that server know that the event should be sent. Another disadvtange is that when the connection is interrupted we need to handle that to open a new one - and configure the server to not drop non-delivered events. \n\nWebSockets - bidirectional connection, perfect for chats, quick events both ways. \n\nChat - WebSockets\nDashboard with changing elements - SSE or polling.",
+      "evaluation": {
+        "score": "7/10",
+        "verdict": "Good",
+        "feedback": "Polling, SSE and WebSockets are all characterized well — especially the SSE fan-out problem in a multi-server setup (the event is produced on one instance, the client is connected to another; you solve it with a shared pub/sub backbone) — that's a point most people miss. The final picks (WebSockets for chat, SSE for dashboards) are right. Two corrections though. (1) Long polling is undersold: the server does NOT just wait out 30-40s — it holds the request and responds THE MOMENT an event arrives (the timeout is only the no-event fallback), so its latency is near-real-time; it was the standard real-time technique before WebSockets and is still the best fallback where proxies/firewalls break persistent connections. 'It's quite bad' inverts its actual trade-off: near-instant delivery at the cost of held connections and a reconnect per event. (2) SSE reconnection is largely FREE: the browser's EventSource auto-reconnects and sends a Last-Event-ID header, so if the server stamps events with ids and can replay from one, resumption is built into the protocol — you configure it rather than hand-build it. Minor gap: WebSockets deserve one con — you give up plain HTTP semantics (caching, easy load balancing, HTTP/2 multiplexing) and must hand-roll heartbeats and reconnect logic that SSE gives you for free."
+      },
+      "followUp": "You named the key SSE problem yourself: the event is produced on server instance A, but the user's connection lives on instance B. Design the fix — what does a pub/sub backbone (e.g. Redis) change about the flow, what does each instance subscribe to, and what happens to delivery guarantees if an instance crashes between receiving the publish and writing to its sockets?"
     },
     {
       "id": "q5",
