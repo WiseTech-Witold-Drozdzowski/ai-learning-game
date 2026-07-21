@@ -29,6 +29,20 @@ export const SEED_JAVA_CORE = {
   ],
 }
 
+export const SEED_JAVA_QUIZ = {
+  id: 'quiz',
+  title: 'Java Quiz',
+  questions: [
+    {
+      type: 'quiz',
+      question: 'Which of the following are JVM languages?',
+      options: ['Kotlin', 'Rust', 'Scala', 'Go'],
+      correct: [0, 2],
+    },
+    'An open question in the same topic.',
+  ],
+}
+
 // Old full-schema topic file, used by the --with-state migration tests.
 export const LEGACY_JS_BASICS = {
   id: 'basics',

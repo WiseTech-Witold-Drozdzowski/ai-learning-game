@@ -42,6 +42,20 @@ Two npm scripts (run in `dev/ai-teacher/`) bracket your work:
 
 `previousEvaluation` / `currentFollowUp` are `null` on first evaluation.
 
+**Multiselect quiz questions** additionally carry:
+
+```json
+{
+  "type": "quiz",
+  "options": ["opt A", "opt B", "opt C", "opt D"],
+  "correctOptions": ["opt A", "opt C"]
+}
+```
+
+Their `answer` is the user's selection: the chosen option texts, one per line
+(any follow-up answer sits below the usual marker). `correctOptions` is the
+answer key — it is only exported to you, the UI never shows it.
+
 ## Output: `data/_evaluations.json`
 
 One entry per pending question, keyed by `topic` + `qid`:
@@ -77,6 +91,18 @@ One entry per pending question, keyed by `topic` + `qid`:
 - `feedback` and `followUp` are plain text (the UI renders them as-is).
 - `followUp`: a single probing question that pushes deeper — typically "why", a
   trade-off, an edge case, or "when would this NOT hold".
+- **Quiz questions** (`type: "quiz"`) are graded against `correctOptions`, not by
+  judgment. Compare the selected lines of `answer` with `correctOptions`:
+  - Exact match → `"10/10"`, `Excellent`.
+  - Otherwise: `score = round(10 × max(0, hits − wrong picks) / |correctOptions|)`,
+    where *hits* = correct options selected and *wrong picks* = incorrect options
+    selected. Missed-only → `Partially correct`; any wrong pick → `Partially
+    correct` or `Incorrect` (score < 5).
+  - `feedback` must name each wrongly-picked option (and why it's wrong) and each
+    missed option (and why it's correct) — that's where the learning happens,
+    since the UI never reveals the key.
+  - `followUp` for quizzes: ask the user to *explain* the trickiest correct
+    option, or probe the misconception behind a wrong pick.
 - **Follow-up answers:** the UI lets the user answer `currentFollowUp` inside the
   same `answer` field, below a `----FOLLOW UP ANSWER-----` marker line. When the
   marker is present: grade the text above it against `question`, the text below it

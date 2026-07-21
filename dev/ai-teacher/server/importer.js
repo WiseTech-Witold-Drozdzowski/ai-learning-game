@@ -73,11 +73,11 @@ export async function importSeeds(db, dataDir, { withState = false } = {}) {
   )
   const insertQuestion = db.prepare(
     `INSERT INTO questions (
-       topic_id, qid, question, question_hash,
+       topic_id, qid, type, question, question_hash, options, correct,
        answer, eval_score, eval_verdict, eval_feedback, follow_up,
        explanation, assist_required, hidden, answered_at, evaluated_at
      ) VALUES (
-       @topicId, @qid, @question, @hash,
+       @topicId, @qid, @type, @question, @hash, @options, @correct,
        @answer, @score, @verdict, @feedback, @followUp,
        @explanation, @assist, @hidden, @answeredAt, @evaluatedAt
      )`
@@ -107,7 +107,25 @@ export async function importSeeds(db, dataDir, { withState = false } = {}) {
     for (const entry of seed.questions ?? []) {
       const q = typeof entry === 'string' ? { question: entry } : entry
       if (typeof q.question !== 'string' || !q.question.trim()) continue
-      const hash = questionHash(q.question)
+
+      // Multiselect quiz entries: {type:'quiz', question, options:[...], correct:[indices]}.
+      // Malformed quizzes are skipped like any other malformed entry.
+      const isQuiz = q.type === 'quiz'
+      let options = null
+      let correct = null
+      if (isQuiz) {
+        options = Array.isArray(q.options)
+          ? q.options.filter((o) => typeof o === 'string' && o.trim())
+          : []
+        correct = Array.isArray(q.correct)
+          ? [...new Set(q.correct)].filter((i) => Number.isInteger(i) && i >= 0 && i < options.length)
+          : []
+        if (options.length < 2 || !correct.length) continue
+      }
+
+      // Quiz identity includes the options: the same stem ("Which of these are
+      // true about X?") may legitimately recur with a different option set.
+      const hash = questionHash(isQuiz ? [q.question, ...options].join('\n') : q.question)
       if (knownHashes.has(hash)) {
         stats.skipped++
         continue
@@ -118,8 +136,11 @@ export async function importSeeds(db, dataDir, { withState = false } = {}) {
       insertQuestion.run({
         topicId,
         qid,
+        type: isQuiz ? 'quiz' : 'open',
         question: q.question,
         hash,
+        options: isQuiz ? JSON.stringify(options) : null,
+        correct: isQuiz ? JSON.stringify(correct.sort((a, b) => a - b)) : null,
         answer,
         score: state.evaluation?.score ?? null,
         verdict: state.evaluation?.verdict ?? null,

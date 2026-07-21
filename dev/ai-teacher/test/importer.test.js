@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { importSeeds } from '../server/importer.js'
 import { getSection, pendingQuestions } from '../server/db.js'
-import { memoryDb, makeDataDir, SEED_JAVA_CORE, LEGACY_JS_BASICS } from './helpers.js'
+import { memoryDb, makeDataDir, SEED_JAVA_CORE, SEED_JAVA_QUIZ, LEGACY_JS_BASICS } from './helpers.js'
 
 test('imports subjects, topics and questions from seed files', async (t) => {
   const { dir, cleanup } = await makeDataDir({
@@ -130,6 +130,72 @@ test('without --with-state answers and evaluations are NOT imported', async (t) 
   assert.equal(q1.evaluation, null)
   assert.equal(q1.followUp, null)
   assert.equal(pendingQuestions(db).length, 0)
+})
+
+test('imports multiselect quiz entries alongside open questions', async (t) => {
+  const { dir, cleanup } = await makeDataDir({ 'java/quiz.json': SEED_JAVA_QUIZ })
+  t.after(cleanup)
+  const db = memoryDb()
+
+  const stats = await importSeeds(db, dir)
+  assert.equal(stats.inserted, 2)
+
+  const [quiz, open] = getSection(db, 'java/quiz').questions
+  assert.equal(quiz.type, 'quiz')
+  assert.deepEqual(quiz.options, ['Kotlin', 'Rust', 'Scala', 'Go'])
+  assert.equal('correct' in quiz, false, 'the answer key must not reach the UI')
+  assert.equal(open.type, undefined)
+  assert.equal(open.options, undefined)
+
+  // re-import stays idempotent for quizzes too
+  const again = await importSeeds(db, dir)
+  assert.equal(again.inserted, 0)
+  assert.equal(again.skipped, 2)
+})
+
+test('same quiz stem with a different option set is a new question', async (t) => {
+  const first = await makeDataDir({ 'java/quiz.json': SEED_JAVA_QUIZ })
+  t.after(first.cleanup)
+  const db = memoryDb()
+  await importSeeds(db, first.dir)
+
+  const second = await makeDataDir({
+    'java/quiz.json': {
+      title: 'Java Quiz',
+      questions: [
+        {
+          type: 'quiz',
+          question: 'Which of the following are JVM languages?',
+          options: ['Clojure', 'C', 'Groovy'],
+          correct: [0, 2],
+        },
+      ],
+    },
+  })
+  t.after(second.cleanup)
+  const stats = await importSeeds(db, second.dir)
+  assert.equal(stats.inserted, 1)
+  assert.equal(getSection(db, 'java/quiz').questions.length, 3)
+})
+
+test('malformed quiz entries are skipped', async (t) => {
+  const { dir, cleanup } = await makeDataDir({
+    'java/quiz.json': {
+      title: 'Java Quiz',
+      questions: [
+        { type: 'quiz', question: 'No options at all?' },
+        { type: 'quiz', question: 'One option only?', options: ['A'], correct: [0] },
+        { type: 'quiz', question: 'No valid correct index?', options: ['A', 'B'], correct: [5] },
+        { type: 'quiz', question: 'A valid one?', options: ['A', 'B'], correct: [1] },
+      ],
+    },
+  })
+  t.after(cleanup)
+  const db = memoryDb()
+
+  const stats = await importSeeds(db, dir)
+  assert.equal(stats.inserted, 1)
+  assert.equal(getSection(db, 'java/quiz').questions[0].question, 'A valid one?')
 })
 
 test('files and dirs starting with "_" or "." are never topics', async (t) => {

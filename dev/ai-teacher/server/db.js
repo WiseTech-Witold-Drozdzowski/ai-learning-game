@@ -22,8 +22,11 @@ CREATE TABLE IF NOT EXISTS questions (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   topic_id        TEXT NOT NULL REFERENCES topics(id),
   qid             TEXT NOT NULL,
+  type            TEXT NOT NULL DEFAULT 'open',
   question        TEXT NOT NULL,
   question_hash   TEXT NOT NULL,
+  options         TEXT,
+  correct         TEXT,
   answer          TEXT NOT NULL DEFAULT '',
   eval_score      TEXT,
   eval_verdict    TEXT,
@@ -44,7 +47,19 @@ export function openDb(file) {
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(SCHEMA)
+  migrate(db)
   return db
+}
+
+// CREATE TABLE IF NOT EXISTS never alters an existing table, so columns added
+// after the first release must be bolted on here.
+function migrate(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(questions)').all().map((c) => c.name))
+  if (!columns.has('type')) {
+    db.exec("ALTER TABLE questions ADD COLUMN type TEXT NOT NULL DEFAULT 'open'")
+  }
+  if (!columns.has('options')) db.exec('ALTER TABLE questions ADD COLUMN options TEXT')
+  if (!columns.has('correct')) db.exec('ALTER TABLE questions ADD COLUMN correct TEXT')
 }
 
 // Dedup key for a question: whitespace- and case-insensitive content hash.
@@ -57,7 +72,8 @@ const hasEvaluation = (row) =>
   row.eval_score != null || row.eval_verdict != null || row.eval_feedback != null
 
 // Rebuild the exact question shape the JSON files used, so the API contract
-// (and the Vue client) stays unchanged.
+// (and the Vue client) stays unchanged. Quiz questions additionally carry
+// type + options; the correct answers never leave the server through this API.
 function toApiQuestion(row) {
   const q = {
     id: row.qid,
@@ -67,6 +83,10 @@ function toApiQuestion(row) {
       ? { score: row.eval_score, verdict: row.eval_verdict, feedback: row.eval_feedback }
       : null,
     followUp: row.follow_up,
+  }
+  if (row.type === 'quiz') {
+    q.type = 'quiz'
+    q.options = JSON.parse(row.options ?? '[]')
   }
   if (row.assist_required) q.assistRequired = true
   if (row.hidden) q.hidden = true
@@ -215,7 +235,7 @@ export function pendingQuestions(db) {
   return db
     .prepare(
       `SELECT t.id AS topic, t.title AS topicTitle, s.title AS subjectTitle,
-              q.qid, q.question, q.answer,
+              q.qid, q.type, q.question, q.options, q.correct, q.answer,
               q.eval_score, q.eval_verdict, q.eval_feedback,
               q.follow_up, q.assist_required, q.explanation
        FROM questions q
@@ -228,19 +248,30 @@ export function pendingQuestions(db) {
        ORDER BY t.id, q.id`
     )
     .all()
-    .map((r) => ({
-      topic: r.topic,
-      topicTitle: r.topicTitle,
-      subjectTitle: r.subjectTitle ?? null,
-      qid: r.qid,
-      question: r.question,
-      answer: r.answer,
-      assistRequired: !!r.assist_required,
-      previousEvaluation: hasEvaluation(r)
-        ? { score: r.eval_score, verdict: r.eval_verdict, feedback: r.eval_feedback }
-        : null,
-      currentFollowUp: r.follow_up,
-    }))
+    .map((r) => {
+      const p = {
+        topic: r.topic,
+        topicTitle: r.topicTitle,
+        subjectTitle: r.subjectTitle ?? null,
+        qid: r.qid,
+        question: r.question,
+        answer: r.answer,
+        assistRequired: !!r.assist_required,
+        previousEvaluation: hasEvaluation(r)
+          ? { score: r.eval_score, verdict: r.eval_verdict, feedback: r.eval_feedback }
+          : null,
+        currentFollowUp: r.follow_up,
+      }
+      // The evaluator (unlike the UI) does get the answer key, so quiz answers
+      // can be graded objectively.
+      if (r.type === 'quiz') {
+        const options = JSON.parse(r.options ?? '[]')
+        p.type = 'quiz'
+        p.options = options
+        p.correctOptions = JSON.parse(r.correct ?? '[]').map((i) => options[i])
+      }
+      return p
+    })
 }
 
 // Write one evaluation result back. Only the fields present in the payload are
