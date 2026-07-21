@@ -46,6 +46,9 @@ Rules:
 - `questions` entries are plain strings. (Objects with a `question` field are
   also accepted — that's how pre-migration files look; never write the old
   `answer`/`evaluation`/`followUp` fields in new content, the importer ignores them.)
+- Multiselect quiz entries (`{ "type": "quiz", ... }`) may sit in the same array —
+  they are written by the `aiteacher-quiz` skill; use that skill when the user
+  wants quizzes instead of open-ended questions.
 - Question ids (`q1`, `q2`, ...) are assigned by the importer — do not invent them.
 - Write valid JSON, 2-space indented, trailing newline.
 

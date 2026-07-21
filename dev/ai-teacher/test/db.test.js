@@ -11,7 +11,7 @@ import {
   applyEvaluation,
   listSections,
 } from '../server/db.js'
-import { memoryDb, makeDataDir, SEED_JAVA_CORE, LEGACY_JS_BASICS } from './helpers.js'
+import { memoryDb, makeDataDir, SEED_JAVA_CORE, SEED_JAVA_QUIZ, LEGACY_JS_BASICS } from './helpers.js'
 
 async function seededDb(t, files = { 'java/core.json': SEED_JAVA_CORE }, opts = {}) {
   const { dir, cleanup } = await makeDataDir(files)
@@ -184,6 +184,61 @@ test('listSections computes the same aggregates the JSON server did', async (t) 
   const core = sections[0]
   assert.equal(core.answered, 0)
   assert.equal(core.avgScore, null)
+})
+
+test('pending quiz questions carry options and the answer key', async (t) => {
+  const db = await seededDb(t, { 'java/quiz.json': SEED_JAVA_QUIZ })
+
+  saveAnswers(db, 'java/quiz', { q1: 'Kotlin\nRust' })
+  const [pending] = pendingQuestions(db)
+  assert.equal(pending.type, 'quiz')
+  assert.deepEqual(pending.options, ['Kotlin', 'Rust', 'Scala', 'Go'])
+  assert.deepEqual(pending.correctOptions, ['Kotlin', 'Scala'])
+
+  // open questions keep the old export shape
+  saveAnswers(db, 'java/quiz', { q2: 'An answer.' })
+  const open = pendingQuestions(db).find((p) => p.qid === 'q2')
+  assert.equal('type' in open, false)
+  assert.equal('correctOptions' in open, false)
+})
+
+test('openDb migrates a pre-quiz questions table in place', async (t) => {
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const { DatabaseSync } = await import('node:sqlite')
+  const { openDb } = await import('../server/db.js')
+
+  const dir = await mkdtemp(path.join(tmpdir(), 'ai-teacher-migrate-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const file = path.join(dir, 'old.db')
+
+  // the questions table as it looked before the quiz columns existed
+  const old = new DatabaseSync(file)
+  old.exec(`
+    CREATE TABLE questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic_id TEXT NOT NULL, qid TEXT NOT NULL,
+      question TEXT NOT NULL, question_hash TEXT NOT NULL,
+      answer TEXT NOT NULL DEFAULT '',
+      eval_score TEXT, eval_verdict TEXT, eval_feedback TEXT,
+      follow_up TEXT, explanation TEXT,
+      assist_required INTEGER NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0,
+      answered_at TEXT, evaluated_at TEXT,
+      UNIQUE(topic_id, qid), UNIQUE(topic_id, question_hash)
+    )
+  `)
+  old.exec(`
+    INSERT INTO questions (topic_id, qid, question, question_hash)
+    VALUES ('java/core', 'q1', 'What is the JVM?', 'h1')
+  `)
+  old.close()
+
+  const db = openDb(file)
+  t.after(() => db.close())
+  const row = db.prepare('SELECT type, options, correct FROM questions').get()
+  assert.deepEqual({ ...row }, { type: 'open', options: null, correct: null })
 })
 
 test('applyEvaluation returns false for unknown questions or empty payloads', async (t) => {

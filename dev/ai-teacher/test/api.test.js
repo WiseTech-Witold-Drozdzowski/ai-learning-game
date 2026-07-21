@@ -2,14 +2,15 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { importSeeds } from '../server/importer.js'
 import { createApp } from '../server/app.js'
-import { memoryDb, makeDataDir, SEED_JAVA_CORE, LEGACY_JS_BASICS } from './helpers.js'
+import { memoryDb, makeDataDir, SEED_JAVA_CORE, SEED_JAVA_QUIZ, LEGACY_JS_BASICS } from './helpers.js'
 
 // Boot the real Express app on an ephemeral port against an in-memory DB.
-async function startServer(t) {
+async function startServer(t, extraFiles = {}) {
   const { dir, cleanup } = await makeDataDir({
     'java/core.json': SEED_JAVA_CORE,
     'javascript/_subject.json': { title: 'JavaScript' },
     'javascript/basics.json': LEGACY_JS_BASICS,
+    ...extraFiles,
   })
   t.after(cleanup)
   const db = memoryDb()
@@ -82,6 +83,27 @@ test('GET /api/sections/:id returns the legacy section shape', async (t) => {
 
   const missing = await api('GET', '/api/sections/nope')
   assert.equal(missing.status, 404)
+})
+
+test('quiz questions expose type and options but never the answer key', async (t) => {
+  const { api } = await startServer(t, { 'java/quiz.json': SEED_JAVA_QUIZ })
+  const url = `/api/sections/${encodeURIComponent('java/quiz')}`
+
+  const { status, body } = await api('GET', url)
+  assert.equal(status, 200)
+  assert.deepEqual(body.questions[0], {
+    id: 'q1',
+    question: 'Which of the following are JVM languages?',
+    answer: '',
+    evaluation: null,
+    followUp: null,
+    type: 'quiz',
+    options: ['Kotlin', 'Rust', 'Scala', 'Go'],
+  })
+
+  // saving a selection round-trips like any other answer
+  const saved = await api('PUT', `${url}/answers`, { answers: { q1: 'Kotlin\nScala' } })
+  assert.equal(saved.body.questions[0].answer, 'Kotlin\nScala')
 })
 
 test('PUT /answers merges answers and returns the updated section', async (t) => {

@@ -277,6 +277,7 @@ button {
 .tag-todo { background: var(--panel-2); color: var(--muted); }
 .tag-answered { background: var(--accent-soft); color: var(--accent-text); }
 .tag-done { background: var(--good-soft); color: var(--good); }
+.tag-quiz { background: var(--warn-soft); color: var(--warn); }
 
 .question { font-size: 16px; font-weight: 550; margin: 0 0 14px; line-height: 1.5; }
 
@@ -299,6 +300,38 @@ button {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .answer::placeholder { color: var(--muted); opacity: 0.7; }
+
+/* ---------- Quiz (multiselect) ---------- */
+
+.quiz-options { display: flex; flex-direction: column; gap: 8px; }
+
+.quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.quiz-option:hover { border-color: var(--accent); }
+.quiz-option.checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.quiz-option input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.quiz-hint { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+.followup-answer { margin-top: 10px; }
 
 /* ---------- Evaluation & follow-up ---------- */
 

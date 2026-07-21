@@ -185,6 +185,26 @@
       "answer": "",
       "evaluation": null,
       "followUp": null
-    }
+    },
+    "Is Java pass-by-value or pass-by-reference? Explain what is actually copied when you pass an object to a method, and why a classic `swap(a, b)` method cannot work in Java while mutating a passed object's fields does.",
+    "Compare primitive types with their wrapper classes. What is autoboxing, where does it silently cost performance (e.g. collections, loops), and how can unboxing a wrapper throw a `NullPointerException`?",
+    "Explain the three uses of the `final` keyword: on variables, methods and classes. Why does a `final` reference not make the object immutable, and what does `final` on a field buy you in a multithreaded context?",
+    "What does `static` mean for fields and methods? Explain static initializer blocks and class initialization order — and why heavy use of static mutable state makes code hard to test.",
+    "What actually happens when you concatenate strings with `+`? Explain why `+` inside a loop is a problem, what `StringBuilder` does differently, and the difference between `StringBuilder` and `StringBuffer`.",
+    "Walk through Java's access modifiers: `private`, package-private (default), `protected` and `public`. What exactly does `protected` allow from a subclass in a different package, and how do modifiers support encapsulation?",
+    "Explain overloading vs overriding: which is resolved at compile time and which at runtime? Describe how the compiler picks among overloads (widening, autoboxing, varargs) and what covariant return types allow when overriding.",
+    "How are enums implemented under the hood in Java? Show how an enum can carry fields, constructors and per-constant method bodies, and explain when to reach for `EnumSet`/`EnumMap` and why an enum makes a good singleton.",
+    "Compare `Comparable` and `Comparator`: when does a class implement one vs the other? Explain building comparators with `Comparator.comparing(...).thenComparing(...)`, handling nulls, and what goes wrong in a `TreeMap` when the ordering is inconsistent with `equals`.",
+    "Why did `java.time` (Instant, LocalDateTime, ZonedDateTime) replace `Date` and `Calendar`? Explain what was broken about the old API, and when you should use `Instant` vs `LocalDateTime` vs `ZonedDateTime`.",
+    "Compare the four kinds of nested classes: static nested, inner, local and anonymous. What hidden reference does a non-static inner class hold, and how can that cause a memory leak?",
+    "How does a lambda differ from an anonymous inner class? Cover what `this` refers to in each, why captured local variables must be effectively final, and what the JVM does instead of generating a class file per lambda.",
+    "Describe the core functional interfaces in `java.util.function`: `Function`, `Supplier`, `Consumer`, `Predicate`, and their primitive/bi variants. Then explain the four kinds of method references and when a method reference beats a lambda.",
+    "How do you design an immutable class in Java? List the rules (final class, final fields, no setters, defensive copies of mutable components) and explain why immutable objects are inherently thread-safe and safe to share.",
+    "Map out the exception hierarchy: `Throwable`, `Error`, `Exception`, `RuntimeException`. Why should you (almost) never catch `Error`, what makes creating an exception expensive, and why is using exceptions for normal control flow a bad idea?",
+    "Why is `Object.clone()` with `Cloneable` widely considered broken, and what should you use instead (copy constructors, static factories)? Also: why was `finalize()` deprecated and what replaces it (`Cleaner`, try-with-resources)?",
+    "What is heap pollution with varargs and generics? Explain the warning on methods like `foo(List<String>... lists)`, what `@SafeVarargs` promises, and how `Arrays.asList` differs from `List.of`.",
+    "How does Java's built-in serialization work? Explain `serialVersionUID`, what happens on class evolution, why serialization is considered a security risk, and what teams use instead (JSON/protobuf, records + explicit mapping).",
+    "What is reflection and how do frameworks (DI containers, ORMs, test runners) rely on it? Discuss its costs, what `setAccessible(true)` does, and how the module system (JPMS) restricts reflective access.",
+    "Compare strong, soft, weak and phantom references. What does the garbage collector do with each, what is `WeakHashMap` good for, and when would a soft reference be used in a cache?"
   ]
 }
