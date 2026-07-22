@@ -22,6 +22,8 @@
     "Why is Micronaut particularly well suited to GraalVM native image? Explain what reflection-heavy frameworks struggle with under native image, and what Micronaut's ahead-of-time approach avoids.",
     "What does `@Introspected` do? Explain bean introspection: why Micronaut needs its own reflection-free way to read/write bean properties, and where it is used (serialization, validation, Micronaut Data).",
     "How do you test a Micronaut application? Explain `@MicronautTest` (what it starts, how injection works in tests), replacing collaborators with `@MockBean`, and testing a controller through the embedded server with an injected `@Client`.",
-    "What do Micronaut's management endpoints provide (health, metrics, refresh, etc.)? How do you enable and secure them, and how does Micronaut integrate with Micrometer for metrics export?"
+    "What do Micronaut's management endpoints provide (health, metrics, refresh, etc.)? How do you enable and secure them, and how does Micronaut integrate with Micrometer for metrics export?",
+    "How does Micronaut integrate with Kafka and RabbitMQ (`@KafkaListener`, `@KafkaClient`, `@RabbitListener`)? Explain what the annotation processor generates, how consumer concurrency and error handling are configured, and how you would test messaging code with Testcontainers.",
+    "How does transaction management work in Micronaut with Micronaut Data and JDBC? Explain `@Transactional` (jakarta vs Micronaut's own), how it decides commit vs rollback on exceptions, how it composes with `@KafkaListener` consumers, and why there is no self-invocation proxy problem like in Spring."
   ]
 }
