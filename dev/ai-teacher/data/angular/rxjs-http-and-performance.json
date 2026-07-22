@@ -44,6 +44,10 @@
       "answer": "",
       "evaluation": null,
       "followUp": null
-    }
+    },
+    "Explain hot vs cold Observables, and compare Subject, BehaviorSubject, ReplaySubject and AsyncSubject. For a stream of live price updates that new subscribers should join with the latest known price, which do you pick and why?",
+    "What do the `share()` and `shareReplay()` operators do, and what problem do they solve when several components subscribe to the same HTTP-backed Observable? Explain the refCount behavior and the classic `shareReplay(1)` memory-leak pitfall with long-lived sources.",
+    "How would you consume a WebSocket in Angular using RxJS `webSocket()` / `WebSocketSubject`? Cover multiplexing several instrument subscriptions over one connection, automatic reconnection with `retry`/backoff, and how you detect and resync missed data after a reconnect.",
+    "A WebSocket pushes hundreds of price ticks per second, but the UI only needs to look smooth. Compare `throttleTime`, `auditTime`, `sampleTime`, `debounceTime` and `bufferTime` for taming the stream — which fits a live price cell, and how do you combine this with OnPush/signals so that one hot instrument doesn't re-render the whole watchlist?"
   ]
 }
