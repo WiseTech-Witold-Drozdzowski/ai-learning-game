@@ -17,6 +17,227 @@
     "Why is `LIMIT 20 OFFSET 100000` slow, and how does keyset (cursor/seek) pagination fix it? What does keyset pagination require of your ordering key, and what UX capability do you give up compared to offset pagination?",
     "Why do applications use a connection pool with PostgreSQL, and why is the number of server connections itself a scarce resource (process-per-connection model)? What does PgBouncer add, and what breaks in transaction-pooling mode (prepared statements, session state)?",
     "Explain JSONB in PostgreSQL: how it differs from the json type, which operators and GIN index options make querying it fast, and how you decide which fields belong in real columns vs inside a JSONB document.",
-    "How would you approach a production incident: 'the database is slow right now'? Cover pg_stat_activity (blocked and long-running queries), pg_locks, pg_stat_statements for top offenders, and checking for autovacuum, lock waits or a missing index after a deploy."
+    "How would you approach a production incident: 'the database is slow right now'? Cover pg_stat_activity (blocked and long-running queries), pg_locks, pg_stat_statements for top offenders, and checking for autovacuum, lock waits or a missing index after a deploy.",
+    {
+      "type": "quiz",
+      "question": "A table has a multi-column B-tree index on (a, b, c). Which queries can use it effectively?",
+      "options": [
+        "WHERE a = 1",
+        "WHERE a = 1 AND b > 5",
+        "WHERE b = 5",
+        "WHERE a = 1 ORDER BY b"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which predicate types can a plain B-tree index serve?",
+      "options": [
+        "Equality (col = ?)",
+        "Range comparisons (col > ?, BETWEEN)",
+        "Prefix pattern matching (LIKE 'abc%', given C collation or text_pattern_ops)",
+        "Suffix pattern matching (LIKE '%abc')"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which of these commonly cause the planner to skip an existing B-tree index?",
+      "options": [
+        "A function applied to the indexed column, e.g. lower(email), without a matching expression index",
+        "A leading wildcard in the pattern (LIKE '%abc')",
+        "Stale table statistics after a big data change",
+        "The table being too large for index scans"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "What must hold for PostgreSQL to use an Index Only Scan?",
+      "options": [
+        "Every column the query needs is available from the index itself",
+        "The visibility map marks enough pages all-visible (i.e. vacuum has kept up)",
+        "The transaction runs at SERIALIZABLE isolation",
+        "The query has no WHERE clause"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "For which workloads is a GIN index the right choice?",
+      "options": [
+        "JSONB containment queries with @>",
+        "Full-text search over tsvector",
+        "Array membership tests",
+        "Range scans over a timestamp column"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about MVCC in PostgreSQL are true?",
+      "options": [
+        "An UPDATE writes a new row version instead of modifying the row in place",
+        "The old row version is immediately overwritten once the transaction commits",
+        "xmin records the transaction id that created the row version",
+        "Readers block writers on the same row"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about VACUUM are true?",
+      "options": [
+        "It removes dead tuples so their space can be reused",
+        "It returns freed disk space to the operating system by default",
+        "It freezes old tuples to prevent transaction ID wraparound",
+        "It takes an exclusive lock that blocks reads and writes"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Why can one long-running (or idle-in-transaction) session cause bloat on tables it never touched?",
+      "options": [
+        "Vacuum cannot remove dead tuples that are still visible to that session's snapshot (its xmin horizon)",
+        "The session holds row locks on every table in the database",
+        "The session forces all other queries to use sequential scans",
+        "PostgreSQL disables autovacuum while any transaction is open"
+      ],
+      "correct": [0]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about READ COMMITTED in PostgreSQL are true?",
+      "options": [
+        "Each statement sees a fresh snapshot taken at statement start",
+        "It prevents non-repeatable reads within a transaction",
+        "It is the default isolation level",
+        "It permits dirty reads of uncommitted data"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about REPEATABLE READ in PostgreSQL are true?",
+      "options": [
+        "The whole transaction runs against a single snapshot taken at its first query",
+        "PostgreSQL's implementation also prevents phantom reads",
+        "Concurrent write conflicts can abort it with a serialization error (40001)",
+        "It is behaviorally identical to SERIALIZABLE"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about SERIALIZABLE in PostgreSQL are true?",
+      "options": [
+        "It is implemented with Serializable Snapshot Isolation (SSI), not by taking more row locks for reads",
+        "Application code must be prepared to retry transactions aborted with 40001",
+        "It makes readers take blocking locks on every row they read",
+        "It guarantees no transaction will ever be aborted"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about SELECT ... FOR UPDATE and its modifiers are true?",
+      "options": [
+        "It blocks concurrent UPDATE, DELETE and FOR UPDATE on the selected rows",
+        "It blocks plain SELECT reads of the same rows",
+        "SKIP LOCKED silently skips rows locked by others — the basis of the job-queue pattern",
+        "NOWAIT raises an error immediately instead of waiting for a lock"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about deadlocks in PostgreSQL are true?",
+      "options": [
+        "PostgreSQL detects deadlocks and aborts one of the involved transactions",
+        "Acquiring locks in a consistent order across transactions prevents them",
+        "Blocked transactions simply wait forever unless the application times out",
+        "Raising deadlock_timeout makes deadlocks stop happening"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Two transactions both run \"does this email exist?\" then INSERT. Which tools correctly fix this race?",
+      "options": [
+        "A unique constraint combined with INSERT ... ON CONFLICT",
+        "A transaction-level advisory lock keyed on the email",
+        "Wrapping the check and insert in a READ COMMITTED transaction",
+        "Running the existence check twice before inserting"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about upsert mechanisms are true?",
+      "options": [
+        "INSERT ... ON CONFLICT DO UPDATE is atomic and race-free under concurrency",
+        "ON CONFLICT requires a unique constraint or unique index as its arbiter",
+        "MERGE (PostgreSQL 15+) gives the same concurrency safety as ON CONFLICT",
+        "Manual UPDATE-then-INSERT is race-free as long as both run in one transaction"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Why is LIMIT 20 OFFSET 100000 slow on a large table?",
+      "options": [
+        "The server must still produce and discard the first 100000 rows before returning 20",
+        "OFFSET disables index usage for the whole query",
+        "LIMIT forces a sequential scan of the table",
+        "The sort step is skipped, so extra work happens on the client"
+      ],
+      "correct": [0]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about keyset (seek) pagination are true?",
+      "options": [
+        "It needs a deterministic, unique ordering key (e.g. created_at + id as tiebreaker)",
+        "You give up the ability to jump directly to an arbitrary page number",
+        "Each page is fetched with an index seek, so cost stays flat regardless of depth",
+        "It still relies on OFFSET internally, just with smaller values"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about PostgreSQL connections and pooling are true?",
+      "options": [
+        "Each server connection is a separate backend process, making connections expensive",
+        "PgBouncer in transaction-pooling mode breaks session state and named prepared statements",
+        "Raising max_connections always increases throughput",
+        "A pooler multiplexes many client connections over few server connections"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about json vs jsonb are true?",
+      "options": [
+        "jsonb stores a parsed binary form and discards key order and duplicate keys",
+        "json preserves the exact input text, including whitespace",
+        "jsonb columns can be indexed with GIN for containment queries",
+        "jsonb supports the @> containment operator",
+        "json is the faster choice for repeatedly querying fields"
+      ],
+      "correct": [0, 1, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "\"The database is slow right now.\" Which tools give relevant evidence during triage?",
+      "options": [
+        "pg_stat_activity — currently running and blocked queries, idle-in-transaction sessions",
+        "pg_stat_statements — aggregated statistics to find the top offending queries",
+        "pg_locks — who is waiting on whom",
+        "Running EXPLAIN ANALYZE on suspect DML directly in production, since it has no side effects"
+      ],
+      "correct": [0, 1, 2]
+    }
   ]
 }

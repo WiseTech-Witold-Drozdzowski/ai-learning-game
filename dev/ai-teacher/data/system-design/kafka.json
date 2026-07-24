@@ -16,6 +16,116 @@
     "Explain Kafka transactions and the exactly-once processing (EOS) model in a consume-transform-produce pipeline: what do the transactional producer, `isolation.level=read_committed` and offset commits inside the transaction each contribute — and what does EOS still NOT protect (side effects like DB writes or emails)?",
     "What happens during a consumer group rebalance? Compare eager (stop-the-world) with cooperative/incremental rebalancing, explain what static group membership is for, and describe the symptoms of a rebalance storm caused by slow processing and `max.poll.interval.ms`.",
     "Your consumer processes a record, writes to PostgreSQL, and then crashes before committing the offset. Walk through what happens on restart, why this forces idempotent processing, and compare deduplication strategies: idempotency keys in the DB, upserts, and storing processed offsets in the same transaction as the data.",
-    "How do you handle poison messages and retries in Kafka, where there is no built-in dead-letter mechanism like RabbitMQ's DLX? Compare blocking retries in the consumer, retry topics with backoff (the pattern behind Spring/Micronaut retry topics), and a dead-letter topic — including what each does to ordering guarantees."
+    "How do you handle poison messages and retries in Kafka, where there is no built-in dead-letter mechanism like RabbitMQ's DLX? Compare blocking retries in the consumer, retry topics with backoff (the pattern behind Spring/Micronaut retry topics), and a dead-letter topic — including what each does to ordering guarantees.",
+    {
+      "type": "quiz",
+      "question": "Which statements about Kafka partitions and ordering are true?",
+      "options": [
+        "Kafka guarantees message order within a single partition",
+        "Kafka guarantees message order across the whole topic",
+        "Records with the same key always land on the same partition (with unchanged partition count)",
+        "Two consumers in the same group can read the same partition simultaneously"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about consumer groups are true?",
+      "options": [
+        "Within a group, each partition is consumed by at most one consumer",
+        "Multiple independent groups each receive every message of the topic",
+        "Adding more consumers than partitions increases the group's throughput",
+        "Committed offsets are tracked per consumer group"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about the producer acks setting are true?",
+      "options": [
+        "acks=all waits until all in-sync replicas have the record",
+        "acks=0 sends without waiting for any broker acknowledgement",
+        "acks=1 waits only for the partition leader",
+        "acks=all by itself guarantees no data loss, regardless of min.insync.replicas"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "A consumer commits its offsets only AFTER successfully processing each batch. Which delivery semantics does this give?",
+      "options": [
+        "At-most-once",
+        "At-least-once",
+        "Exactly-once",
+        "No delivery guarantee at all"
+      ],
+      "correct": [1]
+    },
+    {
+      "type": "quiz",
+      "question": "Replication factor 3, min.insync.replicas=2, producer uses acks=all. Which statements are true?",
+      "options": [
+        "The setup keeps accepting writes with one broker down",
+        "The producer receives an error when the ISR shrinks below 2",
+        "min.insync.replicas controls how many replicas the partition has in total",
+        "A follower that falls too far behind is removed from the ISR"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about log compaction are true?",
+      "options": [
+        "A compacted topic retains at least the latest value for every key",
+        "Compaction deletes all messages older than the retention window regardless of key",
+        "A record with a null value (tombstone) marks its key for deletion",
+        "Compacted topics suit changelogs and restoring state after a restart"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about consumer group rebalances are true?",
+      "options": [
+        "A rebalance is triggered when a consumer joins or leaves the group",
+        "Eager rebalancing stops consumption of all partitions until reassignment finishes",
+        "Cooperative (incremental) rebalancing only moves the partitions that change owner",
+        "After a rebalance the group re-reads the topic from the beginning"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "What is consumer lag?",
+      "options": [
+        "The difference between the latest produced offset and the consumer's position in the partition",
+        "The number of consumers missing from the group relative to the partition count",
+        "The time elapsed since the consumer's last poll() call",
+        "The disk size of the topic's uncompacted segments"
+      ],
+      "correct": [0]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about exactly-once semantics (EOS) in Kafka are true?",
+      "options": [
+        "It requires a transactional producer and consumers reading with isolation.level=read_committed",
+        "It also protects side effects like database writes or sent emails",
+        "The idempotent producer eliminates duplicates caused by producer retries",
+        "It covers consume-transform-produce pipelines where input offsets are committed inside the transaction"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about partition-count operations are true?",
+      "options": [
+        "Increasing the partition count later changes key-to-partition mapping and breaks per-key ordering",
+        "The partition count of an existing topic cannot be changed at all",
+        "Hot partitions are typically caused by skewed message keys",
+        "Adding partitions is always safe because Kafka rehashes old data automatically"
+      ],
+      "correct": [0, 2]
+    }
   ]
 }

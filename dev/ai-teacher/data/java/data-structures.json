@@ -12,6 +12,247 @@
     "Why does the Javadoc recommend ArrayDeque over Stack and LinkedList for stack/queue usage? Explain what is wrong with the legacy Stack class, and how ArrayDeque's circular array works.",
     "Explain EnumMap and EnumSet: how are they implemented under the hood (array indexed by ordinal, bit vector), and why are they strictly better than HashMap/HashSet when keys are enum constants?",
     "How does CopyOnWriteArrayList work, and what read/write cost profile does that give it? When is it the right choice (e.g. a listener list), when is it a disaster, and how do its iterators behave during concurrent modification?",
-    "Compare the immutable collection factories (List.of, Map.of, Set.of) with Collections.unmodifiableList and with a defensive copy (List.copyOf). What is the difference between an unmodifiable view and a truly immutable collection, and how does each react to nulls and to changes in the source?"
+    "Compare the immutable collection factories (List.of, Map.of, Set.of) with Collections.unmodifiableList and with a defensive copy (List.copyOf). What is the difference between an unmodifiable view and a truly immutable collection, and how does each react to nulls and to changes in the source?",
+    "State the equals/hashCode contract and explain what concretely goes wrong in a HashMap or HashSet when it is violated — e.g. equal objects with different hashCodes, or a key whose hash-relevant field is mutated after insertion.",
+    "Walk through what happens inside HashMap.put: how the bucket index is computed from hashCode, how collisions are handled, when a bucket is converted to a red-black tree (thresholds 8 and 64), and what a resize does.",
+    "ArrayList vs LinkedList: compare their memory layout and cache behavior, and explain why LinkedList's 'O(1) insert' almost never makes it faster in practice. When is LinkedList still a reasonable choice?",
+    "How does Arrays.asList differ from List.of and from new ArrayList<>(collection)? Cover mutability, size changes, null handling, and the fact that Arrays.asList is a write-through view over the array.",
+    "What is a fail-fast iterator and how does modCount implement it? List the safe ways to remove elements while iterating (Iterator.remove, removeIf, iterating a copy) and explain why ConcurrentModificationException is only best-effort.",
+    "Compare Comparable and Comparator: when does each belong on the class vs at the call site, how do Comparator.comparing/thenComparing/reversed compose, and what does 'comparator inconsistent with equals' break in a TreeSet or TreeMap?",
+    "Explain the view collections of a Map — keySet, values, entrySet — and List.subList. Which operations write through to the backing structure, which are unsupported, and what happens to a subList when the backing list is structurally modified?",
+    "Show how getOrDefault, putIfAbsent, computeIfAbsent, computeIfPresent and merge simplify common map idioms — e.g. a word-count map and a Map<K, List<V>> multimap. What does merge do when the remapping function returns null?",
+    "How does ConcurrentHashMap achieve thread-safe access without locking the whole table (CAS on bins, per-bin locking)? Why does it forbid null keys and values, what atomicity does computeIfAbsent give you, and what are its iterators' consistency guarantees?",
+    "Explain WeakHashMap and IdentityHashMap: what reference/equality semantics does each use, what are legitimate use cases, and why is WeakHashMap with String literal or Integer keys a trap?",
+    "Tour the NavigableMap/NavigableSet API: floor/ceiling/lower/higher, headMap/tailMap/subMap, descendingMap, pollFirst/pollLast. Give a real problem (e.g. nearest-price lookup, range query) that these solve elegantly.",
+    "Compare the main BlockingQueue implementations — ArrayBlockingQueue, LinkedBlockingQueue, SynchronousQueue, PriorityBlockingQueue and DelayQueue — and sketch a producer-consumer setup, including the difference between put/take and offer/poll with timeout.",
+    "What did the Sequenced Collections interfaces (Java 21) add — SequencedCollection, SequencedSet, SequencedMap? What do getFirst/getLast/reversed give you that was awkward before, and which existing classes got retrofitted?",
+    "What sorting algorithm does List.sort / Collections.sort use, what does stability mean and why does it matter when sorting by multiple keys? Explain the 'Comparison method violates its general contract' exception and the comparator bugs that cause it.",
+    "What are the pitfalls of Collectors.toMap — duplicate keys, null values, unspecified map type? Show how to fix each (merge function, supplier for the map type) and contrast with groupingBy for building multimaps.",
+    "What is BitSet, how is it implemented, and when does it beat boolean[] or Set<Integer>? Discuss memory footprint and the bulk logical operations (and/or/xor) with an example like sieve of Eratosthenes or feature flags per id.",
+    "Why do records make good map keys and mutable objects bad ones? Explain what happens to a HashMap entry when its key mutates, and how defensive copies and immutability protect collection invariants.",
+    "The JDK has no Multimap type. Design one on top of Map<K, List<V>> or Map<K, Set<V>> using computeIfAbsent — what edge cases (removing the last value, empty-collection leaks, concurrent access) must you handle that a library like Guava handles for you?",
+    "Estimate the memory overhead of a HashMap<Integer, Integer> with a million entries versus an int[] — count object headers, Entry objects, boxing. When do specialized primitive collections (Eclipse Collections, fastutil) or plain arrays become the right call?",
+    "For each scenario pick a data structure and justify it: (a) LRU cache with max size, (b) top-K elements from a huge stream, (c) sliding-window maximum, (d) deduplicating events while preserving arrival order, (e) scheduling tasks to run at given timestamps.",
+    {
+      "type": "quiz",
+      "question": "Which operations on an ArrayList run in O(1) (amortized where applicable)?",
+      "options": [
+        "get(index)",
+        "add(element) at the end",
+        "remove(0)",
+        "contains(element)"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about HashSet are true?",
+      "options": [
+        "Elements must have consistent equals and hashCode implementations",
+        "Elements must implement Comparable",
+        "It permits a single null element",
+        "It preserves insertion order"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about HashMap internals are true?",
+      "options": [
+        "A bucket is converted to a red-black tree after enough collisions (threshold 8, table size at least 64)",
+        "The default load factor is 0.75",
+        "A resize doubles the table capacity",
+        "The table capacity is always a power of two",
+        "Keys within the table are kept sorted by hash value"
+      ],
+      "correct": [0, 1, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about TreeMap are true?",
+      "options": [
+        "Keys must be mutually comparable or a Comparator must be supplied",
+        "A null key is allowed when using natural ordering",
+        "floorKey(k) returns the greatest key less than or equal to k",
+        "get() runs in O(1)"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about LinkedList are true?",
+      "options": [
+        "It implements both List and Deque",
+        "get(i) runs in O(1)",
+        "Its nodes are laid out contiguously in memory, giving good cache locality",
+        "Each element carries extra memory overhead for its node object"
+      ],
+      "correct": [0, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statement about ArrayDeque is true?",
+      "options": [
+        "It permits null elements",
+        "It is thread-safe",
+        "It is the recommended replacement for Stack in single-threaded code",
+        "It supports indexed access like get(i)"
+      ],
+      "correct": [2]
+    },
+    {
+      "type": "quiz",
+      "question": "What is the time complexity of PriorityQueue.poll()?",
+      "options": [
+        "O(1)",
+        "O(log n)",
+        "O(n)",
+        "O(n log n)"
+      ],
+      "correct": [1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which steps are part of building an LRU cache from LinkedHashMap?",
+      "options": [
+        "Construct it with accessOrder = true",
+        "Override removeEldestEntry to enforce the size limit",
+        "Nothing — LinkedHashMap evicts old entries by default",
+        "Rely on get() moving the accessed entry to the end of the iteration order"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which are safe ways to remove elements from an ArrayList while traversing it?",
+      "options": [
+        "Calling Iterator.remove() during iteration",
+        "Calling list.removeIf(predicate)",
+        "Calling list.remove(element) inside a for-each loop",
+        "Iterating by index from the end towards the start"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about lists created by List.of(...) are true?",
+      "options": [
+        "They reject null elements with NullPointerException",
+        "They are deeply immutable at the list level — add, remove and set all throw",
+        "They are backed by the caller's array, so later changes to it show through",
+        "They allow set() as long as the size does not change"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about Arrays.asList(array) are true?",
+      "options": [
+        "It returns a fixed-size list — add and remove throw UnsupportedOperationException",
+        "It supports add() because it copies the array",
+        "set() writes through to the underlying array",
+        "It permits null elements"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about ConcurrentHashMap are true?",
+      "options": [
+        "Null keys and null values are forbidden",
+        "Every write locks the entire table",
+        "computeIfAbsent is atomic per key",
+        "Its iterators are fail-fast and throw ConcurrentModificationException"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about CopyOnWriteArrayList are true?",
+      "options": [
+        "Every mutation copies the whole underlying array",
+        "Iterators see a snapshot from the moment they were created",
+        "It is a good fit for write-heavy workloads",
+        "Reads must acquire a lock"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about EnumSet and EnumMap are true?",
+      "options": [
+        "EnumSet is backed by a bit vector",
+        "EnumMap iterates keys in the enum's ordinal (declaration) order",
+        "Both accept null keys/elements",
+        "HashSet is faster than EnumSet for enum constants"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about the equals/hashCode contract are true?",
+      "options": [
+        "Objects that are equal must have equal hashCodes",
+        "Objects with equal hashCodes must be equal",
+        "Mutating a field used in hashCode while the object is a HashMap key can make the entry unreachable",
+        "hashCode values may legitimately differ between separate JVM runs"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about Comparator and ordering are true?",
+      "options": [
+        "Comparator.comparing(...).thenComparing(...) composes multi-key ordering",
+        "reversed() flips the order of an existing comparator",
+        "Comparator.naturalOrder() requires the elements to implement Comparable",
+        "A comparator inconsistent with equals has no observable effect in a TreeSet"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about Map view collections (keySet, values, entrySet) are true?",
+      "options": [
+        "Removing a key from keySet() removes the mapping from the map",
+        "You can add a key to the map by adding it to keySet()",
+        "values() can contain duplicate elements",
+        "Entry.setValue() on an entrySet element writes through to the map"
+      ],
+      "correct": [0, 2, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about BlockingQueue implementations are true?",
+      "options": [
+        "put() blocks while the queue is full",
+        "offer(e, timeout, unit) gives up after the timeout and returns false",
+        "SynchronousQueue has a capacity of one element",
+        "A LinkedBlockingQueue created without a capacity is effectively unbounded (Integer.MAX_VALUE)"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about collecting streams into maps are true?",
+      "options": [
+        "Collectors.toMap without a merge function throws IllegalStateException on duplicate keys",
+        "Collectors.toMap happily stores null values",
+        "Collectors.groupingBy(classifier) produces a Map whose values are Lists by default",
+        "Collectors.toMap is guaranteed to return a HashMap"
+      ],
+      "correct": [0, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which collections keep their elements in sorted order at all times?",
+      "options": [
+        "TreeSet",
+        "PriorityQueue",
+        "TreeMap (its keys)",
+        "LinkedHashSet"
+      ],
+      "correct": [0, 2]
+    }
   ]
 }
