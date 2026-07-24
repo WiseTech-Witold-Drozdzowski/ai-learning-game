@@ -12,6 +12,116 @@
     "What ordering guarantees does RabbitMQ give? Explain how competing consumers, requeues and retries can reorder messages, and what you can do when strict ordering matters.",
     "RabbitMQ gives at-least-once delivery at best. Explain why exactly-once is not achievable end-to-end, where duplicates come from, and how consumers should be designed (idempotency, deduplication) to cope.",
     "Compare quorum queues with classic mirrored queues for high availability: how does each replicate, why were mirrored queues deprecated, and what trade-offs do quorum queues bring (Raft, memory, poison messages)?",
-    "What happens when a RabbitMQ queue grows faster than consumers can drain it? Explain memory/disk alarms and publisher flow control, and describe the levers you have (more consumers, prefetch tuning, TTL, max-length policies) to keep the system stable."
+    "What happens when a RabbitMQ queue grows faster than consumers can drain it? Explain memory/disk alarms and publisher flow control, and describe the levers you have (more consumers, prefetch tuning, TTL, max-length policies) to keep the system stable.",
+    {
+      "type": "quiz",
+      "question": "Which statements about the AMQP model in RabbitMQ are true?",
+      "options": [
+        "Producers publish messages to exchanges, never directly to queues",
+        "Queues receive messages from exchanges through bindings",
+        "The producer must know which queues will receive its message",
+        "Direct and topic exchanges route based on the message's routing key"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Which exchange type routes by pattern-matching the routing key with * and # wildcards?",
+      "options": [
+        "Direct",
+        "Fanout",
+        "Topic",
+        "Headers"
+      ],
+      "correct": [2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about a fanout exchange are true?",
+      "options": [
+        "It ignores the routing key entirely",
+        "It delivers each message to every queue bound to it",
+        "It filters messages based on header values",
+        "It distributes each message to exactly one bound queue, round-robin"
+      ],
+      "correct": [0, 1]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about consumer acknowledgements are true?",
+      "options": [
+        "Unacknowledged messages are requeued when the consumer's connection dies",
+        "Auto-ack risks losing messages if the consumer crashes mid-processing",
+        "Rejecting or nacking with requeue=false can send the message to a dead-letter exchange",
+        "Sending an ack forces the message to be persisted to disk"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "What is needed for a message to reliably survive a broker restart?",
+      "options": [
+        "The queue must be declared durable",
+        "The message must be published with persistent delivery mode",
+        "The publisher should use publisher confirms to know the message was persisted",
+        "Declaring the exchange durable is sufficient on its own"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about consumer prefetch (basic.qos) are true?",
+      "options": [
+        "It caps how many unacknowledged messages a consumer can hold",
+        "Unlimited prefetch lets one fast-reading consumer starve the others",
+        "Prefetch=1 gives fair dispatch across competing consumers",
+        "Prefetch sets the maximum length of the queue"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which events cause a message to be dead-lettered to a DLX?",
+      "options": [
+        "The consumer rejects or nacks it with requeue=false",
+        "Its TTL expires while it waits in the queue",
+        "The queue's max-length limit pushes it out",
+        "The consumer takes a long time to process it"
+      ],
+      "correct": [0, 1, 2]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about ordering in RabbitMQ are true?",
+      "options": [
+        "Requeues and retries can reorder messages within a queue",
+        "Competing consumers on one queue can finish processing out of order",
+        "RabbitMQ guarantees global ordering across all queues of an exchange",
+        "A single consumer with prefetch=1 on a single queue preserves processing order"
+      ],
+      "correct": [0, 1, 3]
+    },
+    {
+      "type": "quiz",
+      "question": "Why is exactly-once delivery not achievable end-to-end with RabbitMQ?",
+      "options": [
+        "Publisher retries and consumer redeliveries can both create duplicates, and no transaction spans broker and consumer state",
+        "RabbitMQ has no acknowledgement mechanism at all",
+        "Queues cannot be made durable",
+        "The AMQP protocol forbids idempotent consumers"
+      ],
+      "correct": [0]
+    },
+    {
+      "type": "quiz",
+      "question": "Which statements about quorum queues are true?",
+      "options": [
+        "They replicate via the Raft consensus algorithm",
+        "They are the recommended replacement for deprecated classic mirrored queues",
+        "They support poison-message handling via a delivery limit (x-delivery-limit)",
+        "They are non-durable by design"
+      ],
+      "correct": [0, 1, 2]
+    }
   ]
 }
